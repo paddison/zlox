@@ -104,24 +104,25 @@ const Tokenizer = struct {
                     continue :transition .less;
                 },
                 '0'...'9' => continue :transition .number,
+                '_', 'a'...'z', 'A'...'Z' => continue :transition .identifier,
             },
             // two character tokens
             .bang => if (self.match('=')) {
                 self.advance();
                 self.make_token(next_token, .bang_equal);
-            } else continue :transition .start,
+            } else self.make_token(next_token, .bang),
             .equal => if (self.match('=')) {
                 self.advance();
                 self.make_token(next_token, .equal_equal);
-            } else continue :transition .start,
+            } else self.make_token(next_token, .equal),
             .less => if (self.match('=')) {
                 self.advance();
                 self.make_token(next_token, .less_equal);
-            } else continue :transition .start,
+            } else self.make_token(next_token, .less),
             .greater => if (self.match('=')) {
                 self.advance();
                 self.make_token(next_token, .greater_equal);
-            } else continue :transition .start,
+            } else self.make_token(next_token, .greater),
             // literals
             .number => {
                 switch (self.peek()) {
@@ -147,6 +148,13 @@ const Tokenizer = struct {
                     continue :transition .number_dot;
                 },
                 else => self.make_token(next_token, .number),
+            },
+            .identifier => switch (self.peek()) {
+                '_', 'a'...'z', 'A'...'Z', '0'...'9' => {
+                    self.advance();
+                    continue :transition .identifier;
+                },
+                else => self.make_token(next_token, .identifier),
             },
         }
         self.start = self.current;
