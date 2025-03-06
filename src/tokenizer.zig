@@ -82,62 +82,71 @@ const Tokenizer = struct {
             .start => switch (self.consume()) {
                 // handle single character tokens
                 '(', ')', '{', '}', ',', '.', '-', '+', ';', '*' => {
-                    self.advance();
                     self.parse_single_character_token(self.source[self.current], &next_token);
                 },
                 '\n' => {
-                    self.advance();
                     self.line += 1;
                     continue :transition .start;
                 },
                 ' ' => {
-                    self.advance();
                     continue :transition .start;
                 },
                 '!' => {
-                    self.advance();
                     continue :transition .bang;
                 },
                 '=' => {
-                    self.advance();
                     continue :transition .equal;
                 },
                 '>' => {
-                    self.advance();
                     continue :transition .greater;
                 },
                 '<' => {
-                    self.advance();
                     continue :transition .less;
                 },
+                '0'...'9' => continue :transition .number,
             },
-            .bang => switch (self.peek()) {
-                '!' => {
-                    self.advance();
-                    self.make_token(next_token, .bang_equal);
-                },
-                else => continue :transition .start,
+            // two character tokens
+            .bang => if (self.match('=')) {
+                self.advance();
+                self.make_token(next_token, .bang_equal);
+            } else continue :transition .start,
+            .equal => if (self.match('=')) {
+                self.advance();
+                self.make_token(next_token, .equal_equal);
+            } else continue :transition .start,
+            .less => if (self.match('=')) {
+                self.advance();
+                self.make_token(next_token, .less_equal);
+            } else continue :transition .start,
+            .greater => if (self.match('=')) {
+                self.advance();
+                self.make_token(next_token, .greater_equal);
+            } else continue :transition .start,
+            // literals
+            .number => {
+                switch (self.peek()) {
+                    '0'...'9' => {
+                        self.advance();
+                        continue :transition .number;
+                    },
+                    '.' => {
+                        switch (self.peek_next()) {
+                            '0'...'9' => {
+                                self.advance(); // advance past the '.'
+                                self.advance(); // advance past the number
+                                continue :transition .number_dot;
+                            },
+                        }
+                    },
+                    else => self.make_token(next_token, .number),
+                }
             },
-            .equal => switch (self.peek()) {
-                '=' => {
+            .number_dot => switch (self.peek()) {
+                '0'...'9' => {
                     self.advance();
-                    self.make_token(next_token, .equal_equal);
+                    continue :transition .number_dot;
                 },
-                else => continue :transition .start,
-            },
-            .less => switch (self.peek()) {
-                '=' => {
-                    self.advance();
-                    self.make_token(next_token, .less_equal);
-                },
-                else => continue :transition .start,
-            },
-            .greater => switch (self.peek()) {
-                '=' => {
-                    self.advance();
-                    self.make_token(next_token, .greater_equal);
-                },
-                else => continue :transition .start,
+                else => self.make_token(next_token, .number),
             },
         }
         self.start = self.current;
@@ -176,9 +185,17 @@ const Tokenizer = struct {
         return self.source[self.current];
     }
 
+    fn peek_next(self: *Self) u8 {
+        return self.source[self.current + 1];
+    }
+
     fn consume(self: *Self) u8 {
         defer self.current += 1;
         return self.peek;
+    }
+
+    fn match(self: *Self, char: u8) bool {
+        return self.peek() == char;
     }
 
     fn is_at_end(self: *const Self) bool {
