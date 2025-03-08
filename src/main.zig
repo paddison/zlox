@@ -1,5 +1,7 @@
 const std = @import("std");
 const File = std.fs.File;
+const Tokenizer = @import("tokenizer.zig").Tokenizer;
+const TokenType = @import("tokenizer.zig").TokenType;
 
 const InterpretingError = error{
     default,
@@ -47,10 +49,10 @@ pub fn main() !u8 {
 fn run_file(path: [:0]const u8) !void {
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
-    var file_buffer: [FILE_BUFFER_SIZE]u8 = [_]u8{0} ** FILE_BUFFER_SIZE;
+    var file_buffer: [FILE_BUFFER_SIZE:0]u8 = [_:0]u8{0} ** FILE_BUFFER_SIZE;
     const bytes_read = try file.reader().readAll(&file_buffer);
 
-    run(file_buffer[0..bytes_read]);
+    run(file_buffer[0..bytes_read :0]);
 
     if (@atomicLoad(bool, &had_error, std.builtin.AtomicOrder.seq_cst)) {
         return InterpretingError.default;
@@ -67,7 +69,9 @@ fn run_prompt() !void {
     while (true) {
         _ = try writer.print("> ", .{});
         if (reader.streamUntilDelimiter(input_buffer.writer(), '\n', REPL_BUFFER_SIZE)) {
-            run(input_buffer.slice());
+            const s = input_buffer.slice();
+            // TODO: this WILL cause a panic
+            run(s[0..s.len :0]);
         } else |err| {
             try std.io.getStdErr()
                 .writer()
@@ -79,8 +83,15 @@ fn run_prompt() !void {
     }
 }
 
-fn run(source: []u8) void {
+fn run(source: [:0]u8) void {
+    var tokenizer = Tokenizer{
+        .source = source,
+        .current = 0,
+        .start = 0,
+        .line = 0,
+    };
     std.io.getStdOut().writer().print("{s}\n", .{source}) catch {};
+    while (tokenizer.next().t_type != TokenType.eof) {}
 }
 
 fn @"error"(line: usize, message: []const u8) void {
