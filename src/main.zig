@@ -2,6 +2,10 @@ const std = @import("std");
 const File = std.fs.File;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const TokenType = @import("tokenizer.zig").TokenType;
+const Token = @import("tokenizer.zig").Token;
+const AstPrinter = @import("ast_printer.zig").AstPrinter;
+const Expr = @import("ast.zig").Expr;
+const Lexeme = @import("tokenizer.zig").Lexeme;
 
 const InterpretingError = error{
     default,
@@ -32,11 +36,27 @@ pub fn main() !u8 {
         _ = try out.write("Usage: jlox [script]");
         exit_code = .too_many_arguments;
     } else if (args.len == 2) {
-        run_file(args[1]) catch |err| {
-            var out = std.io.getStdOut().writer();
-            out.print("Unable to run file: {!}", .{err}) catch {};
-            exit_code = .file_error;
-        };
+        if (std.mem.eql(u8, "test", args[1])) {
+            // zig fmt: off
+            const expr = Expr{ 
+                .literal = &Expr.Literal{ 
+                    .value = Token{ 
+                        .lexeme = Lexeme{
+                            .start = 0,
+                            .end = 0,
+                        }, 
+                    .t_type = .string, .line = 0 } 
+                } 
+            };
+            // zig fmt: on
+            AstPrinter.print(expr);
+        } else {
+            run_file(args[1]) catch |err| {
+                var out = std.io.getStdOut().writer();
+                out.print("Unable to run file: {!}", .{err}) catch {};
+                exit_code = .file_error;
+            };
+        }
     } else {
         run_prompt() catch {
             exit_code = .write_error;

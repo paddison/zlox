@@ -52,13 +52,13 @@ pub const TokenType = enum {
     invalid,
 };
 
-const Token = struct {
+pub const Token = struct {
     t_type: TokenType,
     lexeme: Lexeme,
     line: usize,
 };
 
-const Lexeme = struct {
+pub const Lexeme = struct {
     start: usize,
     end: usize,
 };
