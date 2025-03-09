@@ -113,7 +113,7 @@ pub const Tokenizer = struct {
         var next_token: Token = undefined;
 
         state: switch (TokenizerState.start) {
-            .start => switch (self.consume()) {
+            .start => switch (self.peek()) {
                 0 => if (self.is_at_end()) {
                     self.make_token(&next_token, .eof);
                 } else {
@@ -121,34 +121,69 @@ pub const Tokenizer = struct {
                 },
                 // handle single character tokens
                 '(', ')', '{', '}', ',', '.', '-', '+', ';', '*' => {
-                    self.parse_single_character_token(self.source[self.current], &next_token);
+                    self.parse_single_character_token(&next_token);
                 },
                 '\n' => {
                     self.line += 1;
+                    self.advance();
+                    self.start += 1;
                     continue :state .start;
                 },
-                ' ' => continue :state .start,
-                '!' => continue :state .bang,
-                '=' => continue :state .equal,
-                '>' => continue :state .greater,
-                '<' => continue :state .less,
-                '0'...'9' => continue :state .number,
-                '_', 'a'...'z', 'A'...'Z' => continue :state .identifier,
-                '"' => continue :state .string,
-                else => continue :state .invalid,
+                ' ', '\t' => {
+                    self.advance();
+                    self.start += 1;
+                    continue :state .start;
+                },
+                '!' => {
+                    self.advance();
+                    continue :state .bang;
+                },
+                '=' => {
+                    self.advance();
+                    continue :state .equal;
+                },
+                '>' => {
+                    self.advance();
+                    continue :state .greater;
+                },
+                '<' => {
+                    self.advance();
+                    continue :state .less;
+                },
+                '0'...'9' => {
+                    self.advance();
+                    continue :state .number;
+                },
+                '_', 'a'...'z', 'A'...'Z' => {
+                    self.advance();
+                    continue :state .identifier;
+                },
+                '"' => {
+                    self.advance();
+                    continue :state .string;
+                },
+                else => {
+                    self.advance();
+                    continue :state .invalid;
+                },
             },
             // invalid token handling: parse until eof or eol
             .invalid => switch (self.peek()) {
                 0 => if (self.is_at_end()) {
                     self.make_token(&next_token, .invalid);
                 } else {
+                    self.advance();
                     continue :state .invalid;
                 },
                 '\n' => {
                     self.line += 1;
+                    self.advance();
                     self.make_token(&next_token, .invalid);
                 },
-                else => continue :state .invalid,
+                else => {
+                    self.advance();
+                    continue :state .invalid;
+                },
             },
             // two character tokens
             .bang => if (self.match('=')) {
@@ -209,23 +244,36 @@ pub const Tokenizer = struct {
                         self.make_token(&next_token, .identifier);
                 },
             },
-            .string => switch (self.consume()) {
-                0 => if (!self.is_at_end()) {
+            .string => switch (self.peek()) {
+                0 => if (self.is_at_end()) {
                     self.make_token(&next_token, .invalid);
                 } else {
+                    self.advance();
                     continue :state .invalid;
                 },
-                '\n' => self.make_token(&next_token, .invalid),
-                '"' => self.make_token(&next_token, .string),
-                else => continue :state .string,
+                '\n' => {
+                    self.line += 1;
+                    self.advance();
+                    self.make_token(&next_token, .invalid);
+                },
+                '"' => {
+                    self.advance();
+                    self.make_token(&next_token, .string);
+                },
+                else => {
+                    self.advance();
+                    continue :state .string;
+                },
             },
         }
         self.start = self.current;
         return next_token;
     }
 
-    fn parse_single_character_token(self: *const Self, c: u8, token: *Token) void {
-        switch (c) {
+    fn parse_single_character_token(self: *Self, token: *Token) void {
+        const lexeme = self.peek();
+        self.advance();
+        switch (lexeme) {
             '(' => self.make_token(token, .right_paren),
             ')' => self.make_token(token, .left_paren),
             '{' => self.make_token(token, .left_brace),
@@ -257,7 +305,7 @@ pub const Tokenizer = struct {
         self.current -= 1;
     }
 
-    fn peek(self: *Self) u8 {
+    fn peek(self: *const Self) u8 {
         return self.source[self.current];
     }
 
