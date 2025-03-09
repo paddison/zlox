@@ -68,10 +68,10 @@ fn run_prompt() !void {
 
     while (true) {
         _ = try writer.print("> ", .{});
-        if (reader.streamUntilDelimiter(input_buffer.writer(), '\n', REPL_BUFFER_SIZE)) {
-            const s = input_buffer.slice();
-            // TODO: this WILL cause a panic
-            run(s[0..s.len :0]);
+        if (reader.streamUntilDelimiter(input_buffer.writer(), '\n', REPL_BUFFER_SIZE - 1)) {
+            input_buffer.append(0) catch unreachable; // zero terminate
+            const s = input_buffer.slice()[0 .. input_buffer.len - 1 :0];
+            run(s);
         } else |err| {
             try std.io.getStdErr()
                 .writer()
@@ -91,7 +91,13 @@ fn run(source: [:0]u8) void {
         .line = 0,
     };
     std.io.getStdOut().writer().print("{s}\n", .{source}) catch {};
-    while (tokenizer.next().t_type != TokenType.eof) {}
+    while (true) {
+        const token = tokenizer.next();
+        std.debug.print("{any}\n", .{token});
+        if (token.t_type == .eof) {
+            break;
+        }
+    }
 }
 
 fn @"error"(line: usize, message: []const u8) void {
