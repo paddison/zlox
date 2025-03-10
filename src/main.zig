@@ -38,18 +38,49 @@ pub fn main() !u8 {
     } else if (args.len == 2) {
         if (std.mem.eql(u8, "test", args[1])) {
             // zig fmt: off
+            const source = "(1 + 2)";
             const expr = Expr{ 
-                .literal = &Expr.Literal{ 
-                    .value = Token{ 
-                        .lexeme = Lexeme{
-                            .start = 0,
-                            .end = 0,
-                        }, 
-                    .t_type = .string, .line = 0 } 
+                .grouping = &Expr.Grouping{ 
+                    .expression = Expr {
+                        .binary = &Expr.Binary {
+                            .left = Expr {
+                                .literal = &Expr.Literal {
+                                    .value = Token {
+                                        .t_type = TokenType.number,
+                                        .lexeme = Lexeme {
+                                            .start = 1,
+                                            .end = 2,
+                                        },
+                                        .line = 0,
+                                    }
+                                }
+                            },
+                            .operator = Token {
+                                .t_type = TokenType.plus,
+                                .lexeme = Lexeme {
+                                    .start = 3,
+                                    .end = 4,
+                                },
+                                .line = 0,
+                            },
+                            .right = Expr {
+                                .literal = &Expr.Literal {
+                                    .value = Token {
+                                        .t_type = TokenType.number,
+                                        .lexeme = Lexeme {
+                                            .start = 1,
+                                            .end = 2,
+                                        },
+                                        .line = 0,
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } 
             };
             // zig fmt: on
-            AstPrinter.print(expr);
+            AstPrinter.print(source, expr);
         } else {
             run_file(args[1]) catch |err| {
                 var out = std.io.getStdOut().writer();
