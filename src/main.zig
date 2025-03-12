@@ -6,6 +6,7 @@ const Token = @import("tokenizer.zig").Token;
 const AstPrinter = @import("ast_printer.zig").AstPrinter;
 const Expr = @import("ast.zig").Expr;
 const Lexeme = @import("tokenizer.zig").Lexeme;
+const Allocator = std.heap.page_allocator;
 
 const InterpretingError = error{
     default,
@@ -35,8 +36,8 @@ pub fn main() !u8 {
         var out = std.io.getStdOut();
         _ = try out.write("Usage: jlox [script]");
         exit_code = .too_many_arguments;
-    } else if (args.len == 2) {
-        if (std.mem.eql(u8, "test", args[1])) {
+    } else if (args.len == 1) {
+        if (true) { //if (std.mem.eql(u8, "test", args[1])) {
             // zig fmt: off
             const source = "(1 + 2)";
             const expr = Expr{ 
@@ -68,8 +69,8 @@ pub fn main() !u8 {
                                     .value = Token {
                                         .t_type = TokenType.number,
                                         .lexeme = Lexeme {
-                                            .start = 1,
-                                            .end = 2,
+                                            .start = 5,
+                                            .end = 6,
                                         },
                                         .line = 0,
                                     }
@@ -80,7 +81,8 @@ pub fn main() !u8 {
                 } 
             };
             // zig fmt: on
-            AstPrinter.print(source, expr);
+            var printer = AstPrinter.new(source, gpa.allocator());
+            printer.print(expr);
         } else {
             run_file(args[1]) catch |err| {
                 var out = std.io.getStdOut().writer();

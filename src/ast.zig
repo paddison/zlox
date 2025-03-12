@@ -14,22 +14,54 @@ pub const Expr = union(enum) {
     pub const Literal = struct { value: Token };
     pub const Unary = struct { operator: Token, right: Expr };
 
-    pub fn accept(self: *const Self, comptime T: type, visitor: Visitor(T)) T {
+    pub fn accept(
+        self: *const Self,
+        comptime T: type,
+        visitor: anytype,
+    ) T {
         return switch (self.*) {
-            .binary => visitor.visit_binary_expr(self.binary.*),
-            .grouping => visitor.visit_grouping_expr(self.grouping.*),
-            .literal => visitor.visit_literal_expr(self.literal.*),
-            .unary => visitor.visit_unary_expr(self.unary.*),
+            .binary => visitor.visit_binary_expr(self.*),
+            .grouping => visitor.visit_grouping_expr(self.*),
+            .literal => visitor.visit_literal_expr(self.*),
+            .unary => visitor.visit_unary_expr(self.*),
         };
     }
 };
 
-pub fn Visitor(T: type) type {
+pub fn VisitorFns(Context: type, Output: type) type {
     return struct {
+        visit_binary_expr_fn: fn (ctx: *Context, Expr) Output,
+        visit_grouping_expr_fn: fn (ctx: *Context, Expr) Output,
+        visit_literal_expr_fn: fn (ctx: *Context, Expr) Output,
+        visit_unary_expr_fn: fn (ctx: *Context, Expr) Output,
+    };
+}
+
+pub fn Visitor(
+    comptime T: type,
+    comptime Context: type,
+    vTable: VisitorFns(Context, T),
+) type {
+    return struct {
+        context: *Context,
+
+        const fns = vTable;
         const Self = @This();
-        visit_binary_expr: fn (Expr.Binary) T,
-        visit_grouping_expr: fn (Expr.Grouping) T,
-        visit_literal_expr: fn (Expr.Literal) T,
-        visit_unary_expr: fn (Expr.Unary) T,
+
+        fn visit_binary_expr(self: *const Self, expr: Expr) T {
+            return fns.visit_binary_expr_fn(self.context, expr);
+        }
+
+        fn visit_grouping_expr(self: *const Self, expr: Expr) T {
+            return fns.visit_grouping_expr_fn(self.context, expr);
+        }
+
+        fn visit_literal_expr(self: *const Self, expr: Expr) T {
+            return fns.visit_literal_expr_fn(self.context, expr);
+        }
+
+        fn visit_unary_expr(self: *const Self, expr: Expr) T {
+            return fns.visit_unary_expr_fn(self.context, expr);
+        }
     };
 }
