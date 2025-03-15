@@ -1,4 +1,5 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 pub const TokenType = enum {
     // Single-character tokens.
@@ -241,12 +242,7 @@ pub const Tokenizer = struct {
                 },
             },
             .string => switch (self.peek()) {
-                0 => if (self.is_at_end()) {
-                    self.make_token(&next_token, .invalid);
-                } else {
-                    self.current += 1;
-                    continue :state .invalid;
-                },
+                0 => continue :state .invalid,
                 '\n' => {
                     self.line += 1;
                     self.current += 1;
@@ -295,6 +291,7 @@ pub const Tokenizer = struct {
     }
 
     fn peek(self: *const Self) u8 {
+        assert(self.current <= self.source.len); // account for zero byte at end (<= and not <)
         return self.source[self.current];
     }
 
@@ -303,6 +300,6 @@ pub const Tokenizer = struct {
     }
 
     fn is_at_end(self: *const Self) bool {
-        return self.current >= self.source.len;
+        return self.current == self.source.len;
     }
 };
