@@ -116,7 +116,7 @@ pub const Tokenizer = struct {
                     continue :state .invalid;
                 },
                 // handle single character tokens
-                '(', ')', '{', '}', ',', '.', '-', '+', ';', '*' => {
+                '(', ')', '{', '}', ',', '.', '-', '+', ';', '/', '*' => {
                     self.parse_single_character_token(&next_token);
                 },
                 '\n' => {
@@ -270,8 +270,8 @@ pub const Tokenizer = struct {
         const lexeme = self.peek();
         self.current += 1;
         switch (lexeme) {
-            '(' => self.make_token(token, .right_paren),
-            ')' => self.make_token(token, .left_paren),
+            '(' => self.make_token(token, .left_paren),
+            ')' => self.make_token(token, .right_paren),
             '{' => self.make_token(token, .left_brace),
             '}' => self.make_token(token, .right_brace),
             ',' => self.make_token(token, .comma),
@@ -279,6 +279,7 @@ pub const Tokenizer = struct {
             '-' => self.make_token(token, .minus),
             '+' => self.make_token(token, .plus),
             ';' => self.make_token(token, .semicolon),
+            '/' => self.make_token(token, .slash),
             '*' => self.make_token(token, .star),
             else => unreachable,
         }

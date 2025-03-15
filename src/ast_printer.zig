@@ -1,5 +1,8 @@
 const std = @import("std");
-const ast = @import("ast.zig");
+const Ast = @import("ast.zig").Ast;
+const Expr = @import("ast.zig").Expr;
+const VisitorFns = @import("ast.zig").VisitorFns;
+const Visitor = @import("ast.zig").Visitor;
 const Token = @import("tokenizer.zig").Token;
 
 const Allocator = std.mem.Allocator;
@@ -14,58 +17,66 @@ pub const AstPrinter = struct {
     const Self = @This();
     const Output = void;
 
-    const visitor_fns = ast.VisitorFns(Self, Output){
+    const visitor_fns = VisitorFns(Self, Output){
         .visit_binary_expr_fn = visit_binary_expr,
         .visit_grouping_expr_fn = visit_grouping_expr,
         .visit_literal_expr_fn = visit_literal_expr,
         .visit_unary_expr_fn = visit_unary_expr,
     };
 
-    fn visitor(self: *Self) ast.Visitor(Output, Self, visitor_fns) {
-        return ast.Visitor(Output, Self, visitor_fns){
+    fn visitor(self: *Self) Visitor(Output, Self, visitor_fns) {
+        return Visitor(Output, Self, visitor_fns){
             .context = self,
         };
     }
 
-    pub fn new(source: [:0]const u8, allocator: Allocator) Self {
+    pub fn init(source: [:0]const u8, allocator: Allocator) Self {
         return .{
             .source = source,
             .output = String.init(allocator),
         };
     }
 
-    pub fn print(self: *Self, expr: ast.Expr) void {
-        const v = self.visitor();
+    pub fn deinit(self: *Self) void {
+        self.output.deinit();
+    }
 
-        expr.accept(Output, v);
+    pub fn print(self: *Self, ast: *const Ast) void {
+        const v = self.visitor();
+        const root = ast.root();
+        for (ast.expressions.items) |expr| {
+            std.debug.print("{any}\n", .{expr});
+        }
+
+        ast.accept(Output, root, v);
         std.debug.print("{s}\n", .{self.output.items});
     }
 
-    fn visit_binary_expr(self: *Self, expr: ast.Expr) Output {
+    fn visit_binary_expr(self: *Self, ast: *const Ast, expr: Expr.Binary) Output {
         const v = self.visitor();
-        self.output.appendSlice(self.get_lexeme(expr.binary.operator)) catch {};
+        self.output.appendSlice(self.get_lexeme(expr.operator)) catch {};
         self.output.append(' ') catch {};
-        expr.binary.left.accept(Output, v);
+        ast.accept(Output, expr.left, v);
         self.output.append(' ') catch {};
-        expr.binary.right.accept(Output, v);
+        ast.accept(Output, expr.right, v);
     }
 
-    fn visit_grouping_expr(self: *Self, expr: ast.Expr) Output {
+    fn visit_grouping_expr(self: *Self, ast: *const Ast, expr: Expr.Grouping) Output {
         self.output.append('(') catch {};
         const v = self.visitor();
-        expr.grouping.expression.accept(Output, v);
+        ast.accept(Output, expr.expression, v);
         self.output.append(')') catch {};
     }
 
-    fn visit_literal_expr(self: *Self, expr: ast.Expr) Output {
-        self.output.appendSlice(self.get_lexeme(expr.literal.value)) catch {};
+    fn visit_literal_expr(self: *Self, expr: Expr.Literal) Output {
+        self.output.appendSlice(self.get_lexeme(expr.value)) catch {};
     }
 
-    fn visit_unary_expr(self: *Self, expr: ast.Expr) Output {
+    fn visit_unary_expr(self: *Self, ast: *const Ast, expr: Expr.Unary) Output {
         const v = self.visitor();
 
-        self.output.appendSlice(self.get_lexeme(expr.unary.operator)) catch {};
-        expr.unary.right.accept(Output, v);
+        self.output.appendSlice(self.get_lexeme(expr.operator)) catch {};
+        ast.accept(Output, expr.right, v);
     }
 
     fn get_lexeme(self: *const Self, token: Token) []const u8 {
