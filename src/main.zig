@@ -111,10 +111,6 @@ fn run(source: [:0]u8) !void {
         }
     }
 
-    for (tokens.items) |token| {
-        std.debug.print("{any}\n", .{token});
-    }
-
     var p = Parser.init(tokens, source);
 
     if (p.parse()) |ast| {

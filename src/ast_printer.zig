@@ -44,12 +44,10 @@ pub const AstPrinter = struct {
     pub fn print(self: *Self, ast: *const Ast) void {
         const v = self.visitor();
         const root = ast.root();
-        for (ast.expressions.items) |expr| {
-            std.debug.print("{any}\n", .{expr});
-        }
+        const stdout = std.io.getStdOut().writer();
 
         ast.accept(Output, root, v);
-        std.debug.print("{s}\n", .{self.output.items});
+        stdout.print("{s}\n", .{self.output.items}) catch {};
     }
 
     fn visit_binary_expr(self: *Self, ast: *const Ast, expr: Expr.Binary) Output {

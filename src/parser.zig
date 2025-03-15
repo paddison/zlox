@@ -15,7 +15,6 @@ pub const ParseError = error{
     OutOfMemory,
 };
 
-// TODO: Check that returning references does not cause issues.
 pub const Parser = struct {
     tokens: ArrayList(Token),
     source: []const u8,
@@ -124,14 +123,8 @@ pub const Parser = struct {
 
         if (self.match(.left_paren)) {
             self.current += 1;
-            std.debug.print("matched left paren: {d}\n", .{self.current});
-
             const expr = try self.expression();
-
-            std.debug.print("parsed expression: {d}\n", .{self.current});
-
             try self.consume(.right_paren, "Expect ')' after expression.");
-            std.debug.print("consumed right paren: {d}\n", .{self.current});
             ret = try self.ast.init_grouping(expr);
         }
 
