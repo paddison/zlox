@@ -5,10 +5,13 @@ const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const TokenType = @import("tokenizer.zig").TokenType;
 const Token = @import("tokenizer.zig").Token;
 const AstPrinter = @import("ast_printer.zig").AstPrinter;
+const interpeter = @import("interpreter.zig");
+const Interpreter = interpeter.Interpreter;
 const Expr = @import("ast.zig").Expr;
 const Lexeme = @import("tokenizer.zig").Lexeme;
 const Allocator = std.heap.page_allocator;
 const Parser = @import("parser.zig").Parser;
+const typing = @import("typing.zig");
 
 const InterpretingError = error{
     default,
@@ -27,6 +30,9 @@ const FILE_BUFFER_SIZE: usize = 8192;
 var had_error = false;
 
 pub fn main() !u8 {
+    const obj = try typing.Object.from_literal("123", typing.Type.number);
+    _ = obj;
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer _ = gpa.deinit();
 
@@ -117,6 +123,9 @@ fn run(source: [:0]u8) !void {
         defer ast.deinit();
         var printer = AstPrinter.init(source, allocator);
         defer printer.deinit();
+
+        var interpreter = Interpreter{ .source = source };
+        _ = interpreter.interpret(ast);
 
         printer.print(&ast);
     }

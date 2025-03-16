@@ -20,9 +20,9 @@ pub const Object = struct {
         };
         switch (typ) {
             .nil => obj.value.nil = null,
-            .number => obj.value.number = try Number.init(lexeme),
-            .string => obj.value.string = try String.init(lexeme),
-            .bool => obj.value.bool = try Bool.init(lexeme),
+            .number => obj.value.number = try Type.Number.init(lexeme),
+            .string => obj.value.string = try Type.String.init(lexeme),
+            .bool => obj.value.bool = try Type.Bool.init(lexeme),
         }
 
         return obj;
@@ -45,54 +45,11 @@ pub const Object = struct {
     }
 };
 
-const Value = union(Type) {
+pub const Value = union(Type) {
     nil: ?void,
-    number: Number,
-    string: String,
-    bool: Bool,
-};
-
-const Number = struct {
-    value: f32,
-
-    const Self = @This();
-
-    fn init(lexeme: []const u8) TypeError!Self {
-        return if (std.fmt.parseFloat(f32, lexeme)) |n|
-            .{ .value = n }
-        else |_|
-            TypeError.invalid_lexeme;
-    }
-};
-
-const String = struct {
-    value: ArrayList(u8),
-
-    const Self = @This();
-
-    fn init(lexeme: []const u8) TypeError!Self {
-        const allocator = std.heap.page_allocator;
-        var value = ArrayList(u8).init(allocator);
-        return if (value.appendSlice(lexeme))
-            .{ .value = value }
-        else |_|
-            TypeError.OutOfMemory;
-    }
-};
-
-const Bool = struct {
-    value: bool,
-
-    const Self = @This();
-
-    fn init(lexeme: []const u8) TypeError!Self {
-        return if (std.mem.eql(u8, lexeme, "true"))
-            .{ .value = true }
-        else if (std.mem.eql(u8, lexeme, "false"))
-            .{ .value = false }
-        else
-            TypeError.invalid_lexeme;
-    }
+    number: Type.Number,
+    string: Type.String,
+    bool: Type.Bool,
 };
 
 pub const Type = enum {
@@ -100,4 +57,47 @@ pub const Type = enum {
     number,
     string,
     bool,
+
+    pub const Number = struct {
+        value: f32,
+
+        const Self = @This();
+
+        fn init(lexeme: []const u8) TypeError!Self {
+            return if (std.fmt.parseFloat(f32, lexeme)) |n|
+                .{ .value = n }
+            else |_|
+                TypeError.invalid_lexeme;
+        }
+    };
+
+    pub const String = struct {
+        value: ArrayList(u8),
+
+        const Self = @This();
+
+        fn init(lexeme: []const u8) TypeError!Self {
+            const allocator = std.heap.page_allocator;
+            var value = ArrayList(u8).init(allocator);
+            return if (value.appendSlice(lexeme))
+                .{ .value = value }
+            else |_|
+                TypeError.OutOfMemory;
+        }
+    };
+
+    pub const Bool = struct {
+        value: bool,
+
+        const Self = @This();
+
+        fn init(lexeme: []const u8) TypeError!Self {
+            return if (std.mem.eql(u8, lexeme, "true"))
+                .{ .value = true }
+            else if (std.mem.eql(u8, lexeme, "false"))
+                .{ .value = false }
+            else
+                TypeError.invalid_lexeme;
+        }
+    };
 };

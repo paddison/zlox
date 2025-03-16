@@ -14,6 +14,10 @@ pub const Ast = struct {
         return self.expressions.items.len - 1;
     }
 
+    pub fn get(self: *const Self, expr: ExprIdx) Expr {
+        return self.expressions.items[expr];
+    }
+
     pub fn add(self: *Self, expression: Expr) !ExprIdx {
         const idx = self.expressions.items.len;
         try self.expressions.append(expression);
