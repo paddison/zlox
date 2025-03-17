@@ -22,15 +22,7 @@ pub const Interpreter = struct {
 
     pub fn interpret(self: *Self, astt: Ast) Output {
         const v = self.visitor();
-        const root = astt.accept(Output, astt.root(), v);
-        _ = root;
-
-        return Object{
-            .id = Type.nil,
-            .value = .{
-                .nil = null,
-            },
-        };
+        return astt.accept(Output, astt.root(), v);
     }
 
     fn visitor(self: *Self) Visitor(Output, Self, visitorFns) {
@@ -62,14 +54,21 @@ pub const Interpreter = struct {
     }
 
     fn visit_literal_expr(self: *Self, expr: Expr.Literal) Output {
-        _ = self;
-        switch (expr.value.t_type) {
-            .number => {},
-            .string => {},
-            .nil => {},
-            .true => {},
-            .false => {},
-            else => {},
+        const lexeme = self.source[expr.value.lexeme.start..expr.value.lexeme.end];
+
+        const value = switch (expr.value.t_type) {
+            .number => Object.new(Type.Number, lexeme),
+            .string => Object.new(Type.String, lexeme),
+            .nil => Object.new(Type.Nil, .{}),
+            .true => Object.new(Type.Bool, true),
+            .false => Object.new(Type.Bool, false),
+            else => unreachable,
+        };
+
+        if (value) |v| {
+            return v;
+        } else |err| {
+            @import("std").debug.print("error when interpreting literal expr {!}", .{err});
         }
 
         return Object{

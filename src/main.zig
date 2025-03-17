@@ -30,9 +30,6 @@ const FILE_BUFFER_SIZE: usize = 8192;
 var had_error = false;
 
 pub fn main() !u8 {
-    const obj = try typing.Object.from_literal("123", typing.Type.number);
-    _ = obj;
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
     defer _ = gpa.deinit();
 
@@ -125,7 +122,8 @@ fn run(source: [:0]u8) !void {
         defer printer.deinit();
 
         var interpreter = Interpreter{ .source = source };
-        _ = interpreter.interpret(ast);
+        const obj = interpreter.interpret(ast);
+        std.debug.print("{any}\n", .{obj});
 
         printer.print(&ast);
     }
