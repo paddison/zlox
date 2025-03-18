@@ -1,6 +1,7 @@
 const ast = @import("ast.zig");
 const Visitor = ast.Visitor;
 const Ast = ast.Ast;
+const ExprIdx = ast.ExprIdx;
 const typing = @import("typing.zig");
 const Object = typing.Object;
 const Type = typing.Type;
@@ -29,31 +30,20 @@ pub const Interpreter = struct {
         return Visitor(Output, Self, visitorFns){ .context = self };
     }
 
-    fn visit_binary_expr(self: *Self, astt: *const Ast, expr: Expr.Binary) Output {
+    pub fn visit_binary_expr(self: *Self, astt: *const Ast, expr: Expr.Binary) Output {
         _ = self;
         _ = astt;
         _ = expr;
         return Object{
-            .id = Type.nil,
-            .value = .{
-                .nil = null,
-            },
+            .nil = {},
         };
     }
 
-    fn visit_grouping_expr(self: *Self, astt: *const Ast, expr: Expr.Grouping) Output {
-        _ = self;
-        _ = astt;
-        _ = expr;
-        return Object{
-            .id = Type.nil,
-            .value = .{
-                .nil = null,
-            },
-        };
+    pub fn visit_grouping_expr(self: *Self, astt: *const Ast, expr: Expr.Grouping) Output {
+        return evaluate(self, astt, expr.expression);
     }
 
-    fn visit_literal_expr(self: *Self, expr: Expr.Literal) Output {
+    pub fn visit_literal_expr(self: *Self, expr: Expr.Literal) Output {
         const lexeme = self.source[expr.value.lexeme.start..expr.value.lexeme.end];
 
         const value = switch (expr.value.t_type) {
@@ -72,22 +62,21 @@ pub const Interpreter = struct {
         }
 
         return Object{
-            .id = Type.nil,
-            .value = .{
-                .nil = null,
-            },
+            .nil = {},
         };
     }
 
-    fn visit_unary_expr(self: *Self, astt: *const Ast, expr: Expr.Unary) Output {
-        _ = self;
-        _ = astt;
-        _ = expr;
-        return Object{
-            .id = Type.nil,
-            .value = .{
-                .nil = null,
-            },
+    pub fn visit_unary_expr(self: *Self, astt: *const Ast, expr: Expr.Unary) Output {
+        const right = evaluate(self, astt, expr.right);
+
+        return switch (expr.operator.t_type) {
+            .bang => right.is_truthy().bnegate(), // maybe make negate function generic over type
+            .minus => right.negate(),
+            else => unreachable,
         };
+    }
+
+    fn evaluate(self: *Self, astt: *const Ast, expr_idx: ExprIdx) Object {
+        return astt.accept(Output, expr_idx, self);
     }
 };
