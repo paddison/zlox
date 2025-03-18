@@ -7,103 +7,6 @@ const TypeError = error{
     OutOfMemory,
 };
 
-pub const Object = struct {
-    id: Type,
-    value: Value,
-
-    const Self = @This();
-
-    pub fn new(typ: type, data: anytype) TypeError!Self {
-        return if (typ == Type.Number)
-            number(data)
-        else if (typ == Type.String)
-            string(data)
-        else if (typ == Type.Bool)
-            boolean(data)
-        else if (typ == Type.Nil)
-            nil()
-        else
-            TypeError.invalid_lexeme;
-    }
-
-    fn number(data: anytype) TypeError!Self {
-        const T = @TypeOf(data);
-        const value = switch (@typeInfo(T)) {
-            .pointer => |lexeme| switch (lexeme.size) {
-                .Slice => try Type.Number.init(data),
-                else => @compileError("Expect []const u8 when creating number"),
-            },
-            else => @compileError("Expect []const u8 when creating number"),
-        };
-
-        return .{
-            .id = .number,
-            .value = Value{ .number = value },
-        };
-    }
-
-    fn string(data: anytype) TypeError!Self {
-        const T = @TypeOf(data);
-        const value = switch (@typeInfo(T)) {
-            .pointer => |lexeme| switch (lexeme.size) {
-                .Slice => try Type.String.init(data),
-                else => @compileError("Expect []const u8 when creating string"),
-            },
-            else => @compileError("Expect []const u8 when creating string"),
-        };
-
-        return .{
-            .id = .string,
-            .value = Value{ .string = value },
-        };
-    }
-
-    fn boolean(data: anytype) Self {
-        const T = @TypeOf(data);
-
-        if (@typeInfo(T) == .bool) {
-            return .{
-                .id = .bool,
-                .value = Value{ .bool = Type.Bool.init(data) },
-            };
-        } else {
-            @compileError("Expect boolean when creating boolean");
-        }
-    }
-
-    fn nil() Self {
-        return .{
-            .id = .nil,
-            .value = .{
-                .nil = null,
-            },
-        };
-    }
-
-    pub fn instance_of(self: *const Self, id: Type) bool {
-        return id == self.id;
-    }
-
-    pub fn equals(self: *const Self, other: Self) bool {
-        return if (self.id == other.id)
-            switch (self.id) {
-                .nil => true,
-                .number => self.value.number.value == self.value.number.value,
-                .string => std.mem.eql(u8, self.value.string.value.items, other.value.string.value.items),
-                .bool => self.value.bool.value == other.value.bool.value,
-            }
-        else
-            false;
-    }
-};
-
-pub const Value = union(Type) {
-    nil: ?void,
-    number: Type.Number,
-    string: Type.String,
-    bool: Type.Bool,
-};
-
 pub const Type = enum {
     nil,
     number,
@@ -149,4 +52,108 @@ pub const Type = enum {
     };
 
     pub const Nil = struct {};
+};
+
+pub const Object = union(Type) {
+    nil: void,
+    number: Type.Number,
+    string: Type.String,
+    bool: Type.Bool,
+
+    const Self = @This();
+
+    pub fn new(typ: type, data: anytype) TypeError!Self {
+        return if (typ == Type.Number)
+            init_number(data)
+        else if (typ == Type.String)
+            init_string(data)
+        else if (typ == Type.Bool)
+            init_boolean(data)
+        else if (typ == Type.Nil)
+            init_nil()
+        else
+            TypeError.invalid_lexeme;
+    }
+
+    fn init_number(data: anytype) TypeError!Self {
+        const T = @TypeOf(data);
+        const value = switch (@typeInfo(T)) {
+            .pointer => |lexeme| switch (lexeme.size) {
+                .Slice => try Type.Number.init(data),
+                else => @compileError("Expect []const u8 when creating number"),
+            },
+            else => @compileError("Expect []const u8 when creating number"),
+        };
+
+        return .{ .number = value };
+    }
+
+    fn init_string(data: anytype) TypeError!Self {
+        const T = @TypeOf(data);
+        const value = switch (@typeInfo(T)) {
+            .pointer => |lexeme| switch (lexeme.size) {
+                .Slice => try Type.String.init(data),
+                else => @compileError("Expect []const u8 when creating string"),
+            },
+            else => @compileError("Expect []const u8 when creating string"),
+        };
+
+        return .{ .string = value };
+    }
+
+    fn init_boolean(data: anytype) Self {
+        const T = @TypeOf(data);
+
+        if (@typeInfo(T) == .bool) {
+            return .{ .bool = Type.Bool.init(data) };
+        } else {
+            @compileError("Expect boolean when creating boolean");
+        }
+    }
+
+    fn init_nil() Self {
+        return .{
+            .nil = {},
+        };
+    }
+
+    pub fn instance_of(self: *const Self, id: Type) bool {
+        return id == self.id;
+    }
+
+    pub fn negate(self: *const Self) Self {
+        return .{
+            .number = .{ .value = -self.number.value },
+        };
+    }
+
+    pub fn bnegate(self: *const Self) Self {
+        return .{
+            .bool = .{
+                .value = !self.bool.value,
+            },
+        };
+    }
+
+    pub fn is_truthy(self: *const Self) Self {
+        const value: Type.Bool = switch (self.*) {
+            .nil => .{ .value = false },
+            .bool => .{ .value = self.bool.value },
+            else => .{ .value = true },
+        };
+
+        return .{ .bool = value };
+    }
+
+    pub fn equals(self: *const Self, other: Self) bool {
+        return if (self.id == other.id)
+            switch (self.id) {
+                .nil => true,
+                .number => self.value.number.value == self.value.number.value,
+                .string => std.mem.eql(u8, self.value.string.value.items, other.value.string.value.items),
+                .bool => self.value.bool.value == other.value.bool.value,
+            }
+        else
+            false;
+    }
 };
