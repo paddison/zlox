@@ -39,6 +39,15 @@ pub const Type = enum {
             else |_|
                 TypeError.OutOfMemory;
         }
+
+        fn concat(self: *const Self, other: *const Self) Self {
+            const allocator = std.heap.page_allocator;
+            var value = ArrayList(u8).init(allocator);
+            value.appendSlice(self.value.items) catch {}; // TODO: Add error handling
+            value.appendSlice(other.value.items) catch {};
+
+            return .{ .value = value };
+        }
     };
 
     pub const Bool = struct {
@@ -118,7 +127,7 @@ pub const Object = union(Type) {
     }
 
     pub fn instance_of(self: *const Self, id: Type) bool {
-        return id == self.id;
+        return id == self.*;
     }
 
     pub fn negate(self: *const Self) Self {
@@ -135,6 +144,58 @@ pub const Object = union(Type) {
         };
     }
 
+    pub fn add(self: *const Self, other: *const Self) Self {
+        return .{
+            .number = .{ .value = self.number.value + other.number.value },
+        };
+    }
+
+    pub fn sub(self: *const Self, other: *const Self) Self {
+        return .{
+            .number = .{ .value = self.number.value - other.number.value },
+        };
+    }
+
+    pub fn div(self: *const Self, other: *const Self) Self {
+        return .{
+            .number = .{ .value = self.number.value / other.number.value },
+        };
+    }
+
+    pub fn mul(self: *const Self, other: *const Self) Self {
+        return .{
+            .number = .{ .value = self.number.value * other.number.value },
+        };
+    }
+
+    pub fn concat(self: *const Self, other: *const Self) Self {
+        return .{ .string = self.string.concat(&other.string) };
+    }
+
+    pub fn greater(self: *const Self, other: *const Self) Self {
+        return .{
+            .bool = .{ .value = self.number.value > other.number.value },
+        };
+    }
+
+    pub fn greater_equal(self: *const Self, other: *const Self) Self {
+        return .{
+            .bool = .{ .value = self.number.value >= other.number.value },
+        };
+    }
+
+    pub fn less(self: *const Self, other: *const Self) Self {
+        return .{
+            .bool = .{ .value = self.number.value < other.number.value },
+        };
+    }
+
+    pub fn less_equal(self: *const Self, other: *const Self) Self {
+        return .{
+            .bool = .{ .value = self.number.value <= other.number.value },
+        };
+    }
+
     pub fn is_truthy(self: *const Self) Self {
         const value: Type.Bool = switch (self.*) {
             .nil => .{ .value = false },
@@ -145,15 +206,17 @@ pub const Object = union(Type) {
         return .{ .bool = value };
     }
 
-    pub fn equals(self: *const Self, other: Self) bool {
-        return if (self.id == other.id)
-            switch (self.id) {
+    pub fn equals(self: *const Self, other: *const Self) Self {
+        const value = if (self == other)
+            switch (self.*) {
                 .nil => true,
-                .number => self.value.number.value == self.value.number.value,
-                .string => std.mem.eql(u8, self.value.string.value.items, other.value.string.value.items),
-                .bool => self.value.bool.value == other.value.bool.value,
+                .number => self.number.value == self.number.value,
+                .string => std.mem.eql(u8, self.string.value.items, other.string.value.items),
+                .bool => self.bool.value == other.bool.value,
             }
         else
             false;
+
+        return .{ .bool = .{ .value = value } };
     }
 };

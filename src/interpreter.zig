@@ -31,11 +31,26 @@ pub const Interpreter = struct {
     }
 
     pub fn visit_binary_expr(self: *Self, astt: *const Ast, expr: Expr.Binary) Output {
-        _ = self;
-        _ = astt;
-        _ = expr;
-        return Object{
-            .nil = {},
+        const left = self.evaluate(astt, expr.left);
+        const right = self.evaluate(astt, expr.right);
+
+        return switch (expr.operator.t_type) {
+            .greater => left.greater(&right),
+            .greater_equal => left.greater_equal(&right),
+            .less => left.less(&right),
+            .less_equal => left.less_equal(&right),
+            .minus => left.sub(&right),
+            .plus => if (left.instance_of(Type.number) and right.instance_of(Type.number))
+                left.add(&right)
+            else if (left.instance_of(Type.string) and right.instance_of(Type.string))
+                left.concat(&right)
+            else
+                unreachable,
+            .slash => left.div(&right),
+            .star => left.mul(&right),
+            .bang_equal => right.equals(&left).bnegate(),
+            .equal_equal => right.equals(&left),
+            else => unreachable,
         };
     }
 
