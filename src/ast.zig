@@ -27,9 +27,10 @@ pub const Ast = struct {
     pub fn accept(
         self: *const Self,
         comptime Output: type,
+        comptime Error: type,
         expr: ExprIdx,
         visitor: anytype,
-    ) Output {
+    ) Error!Output {
         return switch (self.expressions.items[expr]) {
             .binary => |e| visitor.visit_binary_expr(self, e),
             .grouping => |e| visitor.visit_grouping_expr(self, e),
@@ -99,19 +100,20 @@ pub const Expr = union(enum) {
     pub const Unary = struct { operator: Token, right: ExprIdx };
 };
 
-pub fn VisitorFns(Context: type, Output: type) type {
+pub fn VisitorFns(Context: type, Output: type, Error: type) type {
     return struct {
-        visit_binary_expr_fn: fn (*Context, *const Ast, Expr.Binary) Output,
-        visit_grouping_expr_fn: fn (*Context, *const Ast, Expr.Grouping) Output,
-        visit_literal_expr_fn: fn (*Context, Expr.Literal) Output,
-        visit_unary_expr_fn: fn (*Context, *const Ast, Expr.Unary) Output,
+        visit_binary_expr_fn: fn (*Context, *const Ast, Expr.Binary) Error!Output,
+        visit_grouping_expr_fn: fn (*Context, *const Ast, Expr.Grouping) Error!Output,
+        visit_literal_expr_fn: fn (*Context, Expr.Literal) Error!Output,
+        visit_unary_expr_fn: fn (*Context, *const Ast, Expr.Unary) Error!Output,
     };
 }
 
 pub fn Visitor(
     comptime T: type,
     comptime Context: type,
-    vTable: VisitorFns(Context, T),
+    comptime E: type,
+    vTable: VisitorFns(Context, T, E),
 ) type {
     return struct {
         context: *Context,
@@ -119,19 +121,19 @@ pub fn Visitor(
         const fns = vTable;
         const Self = @This();
 
-        fn visit_binary_expr(self: *const Self, ast: *const Ast, expr: Expr.Binary) T {
+        fn visit_binary_expr(self: *const Self, ast: *const Ast, expr: Expr.Binary) E!T {
             return fns.visit_binary_expr_fn(self.context, ast, expr);
         }
 
-        fn visit_grouping_expr(self: *const Self, ast: *const Ast, expr: Expr.Grouping) T {
+        fn visit_grouping_expr(self: *const Self, ast: *const Ast, expr: Expr.Grouping) E!T {
             return fns.visit_grouping_expr_fn(self.context, ast, expr);
         }
 
-        fn visit_literal_expr(self: *const Self, expr: Expr.Literal) T {
+        fn visit_literal_expr(self: *const Self, expr: Expr.Literal) E!T {
             return fns.visit_literal_expr_fn(self.context, expr);
         }
 
-        fn visit_unary_expr(self: *const Self, ast: *const Ast, expr: Expr.Unary) T {
+        fn visit_unary_expr(self: *const Self, ast: *const Ast, expr: Expr.Unary) E!T {
             return fns.visit_unary_expr_fn(self.context, ast, expr);
         }
     };

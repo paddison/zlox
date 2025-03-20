@@ -14,7 +14,9 @@ const Parser = @import("parser.zig").Parser;
 const typing = @import("typing.zig");
 
 const InterpretingError = error{
-    default,
+    static,
+    runtime,
+    OutOfMemory,
 };
 
 const ExitCode = enum(u8) {
@@ -22,12 +24,14 @@ const ExitCode = enum(u8) {
     too_many_arguments = 1,
     write_error = 2,
     file_error = 3,
+    runtime_error = 4,
 };
 
 const REPL_BUFFER_SIZE: usize = 1024;
 const FILE_BUFFER_SIZE: usize = 8192;
 
 var had_error = false;
+var had_runtime_error = false;
 
 pub fn main() !u8 {
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
@@ -44,9 +48,18 @@ pub fn main() !u8 {
         exit_code = .too_many_arguments;
     } else if (args.len == 2) {
         run_file(args[1]) catch |err| {
-            var out = std.io.getStdOut().writer();
-            out.print("Unable to run file: {!}", .{err}) catch {};
-            exit_code = .file_error;
+            var out = std.io.getStdErr().writer();
+            switch (err) {
+                InterpretingError.static => {
+                    exit_code = .file_error;
+                    out.print("Unable to run file: {!}", .{err}) catch {};
+                },
+                InterpretingError.runtime => {
+                    out.print("Unable to execute file: {!}", .{err}) catch {};
+                    exit_code = .runtime_error;
+                },
+                else => unreachable,
+            }
         };
     } else {
         run_prompt() catch {
@@ -66,7 +79,9 @@ fn run_file(path: [:0]const u8) !void {
     try run(file_buffer[0..bytes_read :0]);
 
     if (@atomicLoad(bool, &had_error, std.builtin.AtomicOrder.seq_cst)) {
-        return InterpretingError.default;
+        return InterpretingError.static;
+    } else if (@atomicLoad(bool, &had_runtime_error, std.builtin.AtomicOrder.seq_cst)) {
+        return InterpretingError.runtime;
     }
 }
 
@@ -121,9 +136,21 @@ fn run(source: [:0]u8) !void {
         var printer = AstPrinter.init(source, allocator);
         defer printer.deinit();
 
-        var interpreter = Interpreter{ .source = source };
-        const obj = interpreter.interpret(ast);
-        std.debug.print("{any}\n", .{obj});
+        var interpreter = Interpreter{ .source = source, .error_payload = null };
+        if (interpreter.interpret(ast, allocator)) |object| {
+            defer allocator.free(object);
+            std.debug.print("{s}\n", .{object});
+        } else |err| {
+            return switch (err) {
+                interpeter.Error.runtime_error => blk: {
+                    std.debug.assert(interpreter.error_payload != null);
+                    const payload = interpreter.error_payload.?;
+                    runtime_error(payload.token, payload.message);
+                    break :blk err;
+                },
+                else => err,
+            };
+        }
 
         printer.print(&ast);
     }
@@ -135,6 +162,13 @@ pub fn @"error"(token: Token, lexeme: []const u8, message: []const u8) void {
     } else {
         report(token.line, lexeme, message);
     }
+}
+
+pub fn runtime_error(token: Token, message: []const u8) void {
+    var stderr = std.io.getStdErr().writer();
+
+    stderr.print("{s}\n[line {d}]", .{ message, token.line }) catch {};
+    @atomicStore(bool, &had_runtime_error, true, std.builtin.AtomicOrder.seq_cst);
 }
 
 fn report(line: usize, lexeme: []const u8, message: []const u8) void {

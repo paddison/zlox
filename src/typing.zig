@@ -40,11 +40,11 @@ pub const Type = enum {
                 TypeError.OutOfMemory;
         }
 
-        fn concat(self: *const Self, other: *const Self) Self {
+        fn concat(self: *const Self, other: *const Self) TypeError!Self {
             const allocator = std.heap.page_allocator;
             var value = ArrayList(u8).init(allocator);
-            value.appendSlice(self.value.items) catch {}; // TODO: Add error handling
-            value.appendSlice(other.value.items) catch {};
+            try value.appendSlice(self.value.items);
+            try value.appendSlice(other.value.items);
 
             return .{ .value = value };
         }
@@ -168,8 +168,8 @@ pub const Object = union(Type) {
         };
     }
 
-    pub fn concat(self: *const Self, other: *const Self) Self {
-        return .{ .string = self.string.concat(&other.string) };
+    pub fn concat(self: *const Self, other: *const Self) TypeError!Self {
+        return .{ .string = try self.string.concat(&other.string) };
     }
 
     pub fn greater(self: *const Self, other: *const Self) Self {
