@@ -138,3 +138,40 @@ pub fn Visitor(
         }
     };
 }
+
+pub const Stmt = union(enum) {
+    expression: Expression,
+    print: Print,
+
+    pub const Expression = struct { expression: ExprIdx };
+    pub const Print = struct { expression: ExprIdx };
+
+    pub fn VisitorFns(comptime Context: type, comptime Output: type, Error: type) type {
+        return struct {
+            visit_expression_stmt_fn: fn (*Context, *const Ast, Stmt.Expression) Error!Output,
+            visit_print_stmt_fn: fn (*Context, *const Ast, Stmt.Print) Error!Output,
+        };
+    }
+
+    pub fn Visitor(
+        comptime T: type,
+        comptime Context: type,
+        comptime E: type,
+        vTable: Stmt.VisitorFns(Context, T, E),
+    ) type {
+        return struct {
+            context: *Context,
+
+            const fns = vTable;
+            const Self = @This();
+
+            fn visit_expression_stmt(self: *const Self, ast: *const Ast, stmt: Stmt.Expression) E!T {
+                return fns.visit_expression_stmt_fn(self.context, ast, stmt);
+            }
+
+            fn visit_print_stmt(self: *const Self, ast: *const Ast, stmt: Stmt.Expression) E!T {
+                return fns.visit_print_stmt_fn(self.context, ast, stmt);
+            }
+        };
+    }
+};
