@@ -1,8 +1,6 @@
 const std = @import("std");
 const Ast = @import("ast.zig").Ast;
 const Expr = @import("ast.zig").Expr;
-const VisitorFns = @import("ast.zig").VisitorFns;
-const Visitor = @import("ast.zig").Visitor;
 const Token = @import("tokenizer.zig").Token;
 
 const Allocator = std.mem.Allocator;
@@ -19,15 +17,15 @@ pub const AstPrinter = struct {
     const Self = @This();
     const Output = void;
 
-    const visitor_fns = VisitorFns(Self, Output, Error){
+    const visitor_fns = Expr.VisitorFns(Self, Output, Error){
         .visit_binary_expr_fn = visit_binary_expr,
         .visit_grouping_expr_fn = visit_grouping_expr,
         .visit_literal_expr_fn = visit_literal_expr,
         .visit_unary_expr_fn = visit_unary_expr,
     };
 
-    fn visitor(self: *Self) Visitor(Output, Self, Error, visitor_fns) {
-        return Visitor(Output, Self, Error, visitor_fns){
+    fn visitor(self: *Self) Expr.Visitor(Output, Self, Error, visitor_fns) {
+        return Expr.Visitor(Output, Self, Error, visitor_fns){
             .context = self,
         };
     }

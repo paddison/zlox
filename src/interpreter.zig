@@ -1,7 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ast = @import("ast.zig");
-const Visitor = ast.Visitor;
 const Ast = ast.Ast;
 const ExprIdx = ast.ExprIdx;
 const typing = @import("typing.zig");
@@ -30,7 +29,7 @@ pub const Interpreter = struct {
     const Self = @This();
     const Output = Object;
 
-    const visitorFns: ast.VisitorFns(Self, Output, Error) = .{
+    const visitorFns: Expr.VisitorFns(Self, Output, Error) = .{
         .visit_binary_expr_fn = visit_binary_expr,
         .visit_grouping_expr_fn = visit_grouping_expr,
         .visit_literal_expr_fn = visit_literal_expr,
@@ -45,8 +44,8 @@ pub const Interpreter = struct {
             err;
     }
 
-    fn visitor(self: *Self) Visitor(Output, Self, Error, visitorFns) {
-        return Visitor(Output, Self, Error, visitorFns){ .context = self };
+    fn visitor(self: *Self) Expr.Visitor(Output, Self, Error, visitorFns) {
+        return Expr.Visitor(Output, Self, Error, visitorFns){ .context = self };
     }
 
     pub fn visit_binary_expr(self: *Self, astt: *const Ast, expr: Expr.Binary) Error!Output {
