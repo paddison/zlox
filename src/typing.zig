@@ -1,5 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
 const Literal = @import("expression.zig").Expr.Literal;
 
 const TypeError = error{
@@ -40,7 +41,7 @@ pub const Type = enum {
                 TypeError.OutOfMemory;
         }
 
-        fn concat(self: *const Self, other: *const Self) TypeError!Self {
+        fn concat(self: *const Self, other: *const Self) Allocator.Error!Self {
             const allocator = std.heap.page_allocator;
             var value = ArrayList(u8).init(allocator);
             try value.appendSlice(self.value.items);
@@ -168,7 +169,7 @@ pub const Object = union(Type) {
         };
     }
 
-    pub fn concat(self: *const Self, other: *const Self) TypeError!Self {
+    pub fn concat(self: *const Self, other: *const Self) Allocator.Error!Self {
         return .{ .string = try self.string.concat(&other.string) };
     }
 

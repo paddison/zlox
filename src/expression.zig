@@ -5,28 +5,26 @@ const Allocator = std.mem.Allocator;
 
 pub const ExprIdx = usize;
 
-pub const ExprTree = struct {
-    expressions: ArrayList(Expr),
+pub const Expr = struct {
+    expressions: ArrayList(ExprNode),
 
-    const Self = @This();
-
-    pub fn root(self: *const Self) ExprIdx {
+    pub fn root(self: *const Expr) ExprIdx {
         std.debug.assert(self.expressions.items.len > 0);
         return self.expressions.items.len - 1;
     }
 
-    pub fn get(self: *const Self, expr: ExprIdx) Expr {
+    pub fn get(self: *const Expr, expr: ExprIdx) ExprNode {
         return self.expressions.items[expr];
     }
 
-    pub fn add(self: *Self, expression: Expr) !ExprIdx {
+    pub fn add(self: *Expr, expression: ExprNode) !ExprIdx {
         const idx = self.expressions.items.len;
         try self.expressions.append(expression);
         return idx;
     }
 
     pub fn accept(
-        self: *const Self,
+        self: *const Expr,
         comptime Output: type,
         comptime Error: type,
         expr: ExprIdx,
@@ -40,9 +38,9 @@ pub const ExprTree = struct {
         };
     }
 
-    pub fn init_binary(self: *Self, left: ExprIdx, operator: Token, right: ExprIdx) !ExprIdx {
-        const expr = Expr{
-            .binary = Expr.Binary{
+    pub fn init_binary(self: *Expr, left: ExprIdx, operator: Token, right: ExprIdx) !ExprIdx {
+        const expr = ExprNode{
+            .binary = ExprNode.Binary{
                 .left = left,
                 .operator = operator,
                 .right = right,
@@ -51,8 +49,8 @@ pub const ExprTree = struct {
         return self.add(expr);
     }
 
-    pub fn init_grouping(self: *Self, expression: ExprIdx) !ExprIdx {
-        const expr = Expr{
+    pub fn init_grouping(self: *Expr, expression: ExprIdx) !ExprIdx {
+        const expr = ExprNode{
             .grouping = .{
                 .expression = expression,
             },
@@ -61,8 +59,8 @@ pub const ExprTree = struct {
         return self.add(expr);
     }
 
-    pub fn init_literal(self: *Self, value: Token) !ExprIdx {
-        const expr = Expr{
+    pub fn init_literal(self: *Expr, value: Token) !ExprIdx {
+        const expr = ExprNode{
             .literal = .{
                 .value = value,
             },
@@ -71,8 +69,8 @@ pub const ExprTree = struct {
         return self.add(expr);
     }
 
-    pub fn init_unary(self: *Self, operator: Token, right: ExprIdx) !ExprIdx {
-        const expr = Expr{
+    pub fn init_unary(self: *Expr, operator: Token, right: ExprIdx) !ExprIdx {
+        const expr = ExprNode{
             .unary = .{
                 .operator = operator,
                 .right = right,
@@ -82,63 +80,55 @@ pub const ExprTree = struct {
         return self.add(expr);
     }
 
-    pub fn init(allocator: Allocator) Self {
+    pub fn init(allocator: Allocator) Expr {
         return .{
-            .expressions = ArrayList(Expr).init(allocator),
+            .expressions = ArrayList(ExprNode).init(allocator),
         };
     }
 
-    pub fn deinit(self: *const Self) void {
+    pub fn deinit(self: *const Expr) void {
         self.expressions.deinit();
     }
-};
+    pub const ExprNode = union(enum) {
+        binary: Binary,
+        grouping: Grouping,
+        literal: Literal,
+        unary: Unary,
 
-pub const Expr = union(enum) {
-    binary: Binary,
-    grouping: Grouping,
-    literal: Literal,
-    unary: Unary,
-
-    pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
-    pub const Grouping = struct { expression: ExprIdx };
-    pub const Literal = struct { value: Token };
-    pub const Unary = struct { operator: Token, right: ExprIdx };
-
-    pub fn VisitorFns(Context: type, Output: type, Error: type) type {
-        return struct {
-            visit_binary_expr_fn: fn (*Context, *const ExprTree, Expr.Binary) Error!Output,
-            visit_grouping_expr_fn: fn (*Context, *const ExprTree, Expr.Grouping) Error!Output,
-            visit_literal_expr_fn: fn (*Context, Expr.Literal) Error!Output,
-            visit_unary_expr_fn: fn (*Context, *const ExprTree, Expr.Unary) Error!Output,
-        };
-    }
+        pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
+        pub const Grouping = struct { expression: ExprIdx };
+        pub const Literal = struct { value: Token };
+        pub const Unary = struct { operator: Token, right: ExprIdx };
+    };
 
     pub fn Visitor(
-        comptime T: type,
         comptime Context: type,
-        comptime E: type,
-        vTable: VisitorFns(Context, T, E),
+        comptime Output: type,
+        comptime Error: type,
+        comptime visit_binary_expr_fn: fn (*Context, *const Expr, ExprNode.Binary) Error!Output,
+        comptime visit_grouping_expr_fn: fn (*Context, *const Expr, ExprNode.Grouping) Error!Output,
+        comptime visit_literal_expr_fn: fn (*Context, ExprNode.Literal) Error!Output,
+        comptime visit_unary_expr_fn: fn (*Context, *const Expr, ExprNode.Unary) Error!Output,
     ) type {
         return struct {
             context: *Context,
 
-            const fns = vTable;
-            const Self = @This();
+            const V = @This();
 
-            fn visit_binary_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Binary) E!T {
-                return fns.visit_binary_expr_fn(self.context, ast, expr);
+            fn visit_binary_expr(self: *const V, ast: *const Expr, expr: ExprNode.Binary) Error!Output {
+                return visit_binary_expr_fn(self.context, ast, expr);
             }
 
-            fn visit_grouping_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Grouping) E!T {
-                return fns.visit_grouping_expr_fn(self.context, ast, expr);
+            fn visit_grouping_expr(self: *const V, ast: *const Expr, expr: ExprNode.Grouping) Error!Output {
+                return visit_grouping_expr_fn(self.context, ast, expr);
             }
 
-            fn visit_literal_expr(self: *const Self, expr: Expr.Literal) E!T {
-                return fns.visit_literal_expr_fn(self.context, expr);
+            fn visit_literal_expr(self: *const V, expr: ExprNode.Literal) Error!Output {
+                return visit_literal_expr_fn(self.context, expr);
             }
 
-            fn visit_unary_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Unary) E!T {
-                return fns.visit_unary_expr_fn(self.context, ast, expr);
+            fn visit_unary_expr(self: *const V, ast: *const Expr, expr: ExprNode.Unary) Error!Output {
+                return visit_unary_expr_fn(self.context, ast, expr);
             }
         };
     }

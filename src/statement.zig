@@ -1,12 +1,12 @@
 const expressions = @import("expression.zig");
-const ExprTree = expressions.ExprTree;
+const Expr = expressions.Expr;
 
 pub const Stmt = union(enum) {
     expression: Expression,
     print: Print,
 
-    pub const Expression = struct { expression: ExprTree };
-    pub const Print = struct { expression: ExprTree };
+    pub const Expression = struct { expression: Expr };
+    pub const Print = struct { expression: Expr };
 
     pub fn accept(
         self: *const Stmt,
@@ -20,31 +20,24 @@ pub const Stmt = union(enum) {
         };
     }
 
-    pub fn VisitorFns(comptime Context: type, comptime Output: type, Error: type) type {
-        return struct {
-            visit_expression_stmt_fn: fn (*Context, Stmt.Expression) Error!Output,
-            visit_print_stmt_fn: fn (*Context, Stmt.Print) Error!Output,
-        };
-    }
-
     pub fn Visitor(
-        comptime T: type,
         comptime Context: type,
-        comptime E: type,
-        vTable: Stmt.VisitorFns(Context, T, E),
+        comptime Output: type,
+        comptime Error: type,
+        comptime visit_expression_stmt_fn: fn (*Context, Stmt.Expression) Error!Output,
+        comptime visit_print_stmt_fn: fn (*Context, Stmt.Print) Error!Output,
     ) type {
         return struct {
             context: *Context,
 
-            const fns = vTable;
             const Self = @This();
 
-            fn visit_expression_stmt(self: *const Self, stmt: Stmt.Expression) E!T {
-                return fns.visit_expression_stmt_fn(self.context, stmt);
+            fn visit_expression_stmt(self: *const Self, stmt: Stmt.Expression) Error!Output {
+                return visit_expression_stmt_fn(self.context, stmt);
             }
 
-            fn visit_print_stmt(self: *const Self, stmt: Stmt.Print) E!T {
-                return fns.visit_print_stmt_fn(self.context, stmt);
+            fn visit_print_stmt(self: *const Self, stmt: Stmt.Print) Error!Output {
+                return visit_print_stmt_fn(self.context, stmt);
             }
         };
     }

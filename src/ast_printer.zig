@@ -14,34 +14,34 @@ pub const AstPrinter = struct {
     source: [:0]const u8,
     output: String,
 
-    const Self = @This();
+    const Visitor = Expr.Visitor(
+        AstPrinter,
+        Output,
+        Error,
+        visit_binary_expr,
+        visit_grouping_expr,
+        visit_literal_expr,
+        visit_unary_expr,
+    );
+
     const Output = void;
 
-    const visitor_fns = Expr.VisitorFns(Self, Output, Error){
-        .visit_binary_expr_fn = visit_binary_expr,
-        .visit_grouping_expr_fn = visit_grouping_expr,
-        .visit_literal_expr_fn = visit_literal_expr,
-        .visit_unary_expr_fn = visit_unary_expr,
-    };
-
-    fn visitor(self: *Self) Expr.Visitor(Output, Self, Error, visitor_fns) {
-        return Expr.Visitor(Output, Self, Error, visitor_fns){
-            .context = self,
-        };
+    fn visitor(self: *AstPrinter) Visitor {
+        return .{ .context = self };
     }
 
-    pub fn init(source: [:0]const u8, allocator: Allocator) Self {
+    pub fn init(source: [:0]const u8, allocator: Allocator) AstPrinter {
         return .{
             .source = source,
             .output = String.init(allocator),
         };
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *AstPrinter) void {
         self.output.deinit();
     }
 
-    pub fn print(self: *Self, ast: *const Ast) void {
+    pub fn print(self: *AstPrinter, ast: *const Ast) void {
         const v = self.visitor();
         const root = ast.root();
         const stdout = std.io.getStdOut().writer();
@@ -50,7 +50,7 @@ pub const AstPrinter = struct {
         stdout.print("{s}\n", .{self.output.items}) catch {};
     }
 
-    fn visit_binary_expr(self: *Self, ast: *const Ast, expr: Expr.Binary) Error!Output {
+    fn visit_binary_expr(self: *AstPrinter, ast: *const Ast, expr: Expr.Binary) Error!Output {
         const v = self.visitor();
         self.output.appendSlice(self.get_lexeme(expr.operator)) catch {};
         self.output.append(' ') catch {};
@@ -59,25 +59,25 @@ pub const AstPrinter = struct {
         try ast.accept(Output, Error, expr.right, v);
     }
 
-    fn visit_grouping_expr(self: *Self, ast: *const Ast, expr: Expr.Grouping) Error!Output {
+    fn visit_grouping_expr(self: *AstPrinter, ast: *const Ast, expr: Expr.Grouping) Error!Output {
         self.output.append('(') catch {};
         const v = self.visitor();
         try ast.accept(Output, Error, expr.expression, v);
         self.output.append(')') catch {};
     }
 
-    fn visit_literal_expr(self: *Self, expr: Expr.Literal) Error!Output {
+    fn visit_literal_expr(self: *AstPrinter, expr: Expr.Literal) Error!Output {
         self.output.appendSlice(self.get_lexeme(expr.value)) catch {};
     }
 
-    fn visit_unary_expr(self: *Self, ast: *const Ast, expr: Expr.Unary) Error!Output {
+    fn visit_unary_expr(self: *AstPrinter, ast: *const Ast, expr: Expr.Unary) Error!Output {
         const v = self.visitor();
 
         self.output.appendSlice(self.get_lexeme(expr.operator)) catch {};
         try ast.accept(Output, Error, expr.right, v);
     }
 
-    fn get_lexeme(self: *const Self, token: Token) []const u8 {
+    fn get_lexeme(self: *const AstPrinter, token: Token) []const u8 {
         return self.source[token.lexeme.start..token.lexeme.end];
     }
 };

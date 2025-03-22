@@ -70,9 +70,6 @@ pub const Tokenizer = struct {
     current: usize,
     line: usize,
 
-    const Self = @This();
-
-    // zig fmt: off
     const State = enum {
         start,
         bang,
@@ -86,27 +83,27 @@ pub const Tokenizer = struct {
         identifier,
         string,
     };
-    pub const keywords = std.StaticStringMap(TokenType).initComptime(.{
-        .{"and", .@"and"},
-        .{"class", .@"class"},
-        .{"else", .@"else"},
-        .{"false", .@"false"},
-        .{"fun", .fun},
-        .{"for", .@"for"},
-        .{"if", .@"if"},
-        .{"nil", .nil},
-        .{"or", .@"or"},
-        .{"print", .print},
-        .{"return", .@"return"},
-        .{"super", .super},
-        .{"this", .this},
-        .{"true", .true},
-        .{"bar", .bar},
-        .{"while", .@"while"}
-    });
-    // zig fmt: on
 
-    pub fn next(self: *Self) Token {
+    pub const keywords = std.StaticStringMap(TokenType).initComptime(.{
+        .{ "and", .@"and" },
+        .{ "class", .class },
+        .{ "else", .@"else" },
+        .{ "false", .false },
+        .{ "fun", .fun },
+        .{ "for", .@"for" },
+        .{ "if", .@"if" },
+        .{ "nil", .nil },
+        .{ "or", .@"or" },
+        .{ "print", .print },
+        .{ "return", .@"return" },
+        .{ "super", .super },
+        .{ "this", .this },
+        .{ "true", .true },
+        .{ "bar", .bar },
+        .{ "while", .@"while" },
+    });
+
+    pub fn next(self: *Tokenizer) Token {
         var next_token: Token = undefined;
 
         state: switch (State.start) {
@@ -262,7 +259,7 @@ pub const Tokenizer = struct {
         return next_token;
     }
 
-    fn parse_single_character_token(self: *Self, token: *Token) void {
+    fn parse_single_character_token(self: *Tokenizer, token: *Token) void {
         const lexeme = self.peek();
         self.current += 1;
         switch (lexeme) {
@@ -281,7 +278,7 @@ pub const Tokenizer = struct {
         }
     }
 
-    fn make_token(self: *const Self, token: *Token, t_type: TokenType) void {
+    fn make_token(self: *const Tokenizer, token: *Token, t_type: TokenType) void {
         token.t_type = t_type;
         token.line = self.line;
         token.lexeme = Lexeme{
@@ -290,16 +287,16 @@ pub const Tokenizer = struct {
         };
     }
 
-    fn peek(self: *const Self) u8 {
+    fn peek(self: *const Tokenizer) u8 {
         assert(self.current <= self.source.len); // account for zero byte at end (<= and not <)
         return self.source[self.current];
     }
 
-    fn match(self: *Self, char: u8) bool {
+    fn match(self: *Tokenizer, char: u8) bool {
         return self.peek() == char;
     }
 
-    fn is_at_end(self: *const Self) bool {
+    fn is_at_end(self: *const Tokenizer) bool {
         return self.current == self.source.len;
     }
 };
