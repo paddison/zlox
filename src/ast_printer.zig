@@ -1,6 +1,6 @@
 const std = @import("std");
-const Ast = @import("ast.zig").Ast;
-const Expr = @import("ast.zig").Expr;
+const Ast = @import("expression.zig").Ast;
+const Expr = @import("expression.zig").Expr;
 const Token = @import("tokenizer.zig").Token;
 
 const Allocator = std.mem.Allocator;

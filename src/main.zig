@@ -7,7 +7,7 @@ const Token = @import("tokenizer.zig").Token;
 const AstPrinter = @import("ast_printer.zig").AstPrinter;
 const interpeter = @import("interpreter.zig");
 const Interpreter = interpeter.Interpreter;
-const Expr = @import("ast.zig").Expr;
+const Expr = @import("expression.zig").Expr;
 const Lexeme = @import("tokenizer.zig").Lexeme;
 const Allocator = std.heap.page_allocator;
 const Parser = @import("parser.zig").Parser;
@@ -130,30 +130,34 @@ fn run(source: [:0]u8) !void {
     }
 
     var p = Parser.init(tokens, source);
+    const statements = p.parse(allocator);
+    defer statements.deinit();
+    var interpreter = Interpreter{ .source = source, .error_payload = null, .allocator = allocator };
+    _ = interpreter.interpret(statements.items) catch {};
 
-    if (p.parse()) |ast| {
-        defer ast.deinit();
-        var printer = AstPrinter.init(source, allocator);
-        defer printer.deinit();
-
-        var interpreter = Interpreter{ .source = source, .error_payload = null };
-        if (interpreter.interpret(ast, allocator)) |object| {
-            defer allocator.free(object);
-            std.debug.print("{s}\n", .{object});
-        } else |err| {
-            return switch (err) {
-                interpeter.Error.runtime_error => blk: {
-                    std.debug.assert(interpreter.error_payload != null);
-                    const payload = interpreter.error_payload.?;
-                    runtime_error(payload.token, payload.message);
-                    break :blk err;
-                },
-                else => err,
-            };
-        }
-
-        printer.print(&ast);
-    }
+    //if (p.parse()) |ast| {
+    //defer ast.deinit();
+    //var printer = AstPrinter.init(source, allocator);
+    //defer printer.deinit();
+    //
+    //var interpreter = Interpreter{ .source = source, .error_payload = null };
+    //if (interpreter.interpret(ast, allocator)) |object| {
+    //defer allocator.free(object);
+    //std.debug.print("{s}\n", .{object});
+    //} else |err| {
+    //return switch (err) {
+    //interpeter.Error.runtime_error => blk: {
+    //std.debug.assert(interpreter.error_payload != null);
+    //const payload = interpreter.error_payload.?;
+    //runtime_error(payload.token, payload.message);
+    //break :blk err;
+    //},
+    //else => err,
+    //};
+    //}
+    //
+    //printer.print(&ast);
+    //}
 }
 
 pub fn @"error"(token: Token, lexeme: []const u8, message: []const u8) void {

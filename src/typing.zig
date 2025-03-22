@@ -1,6 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
-const Literal = @import("ast.zig").Expr.Literal;
+const Literal = @import("expression.zig").Expr.Literal;
 
 const TypeError = error{
     invalid_lexeme,
@@ -34,7 +34,7 @@ pub const Type = enum {
         fn init(lexeme: []const u8) TypeError!Self {
             const allocator = std.heap.page_allocator;
             var value = ArrayList(u8).init(allocator);
-            return if (value.appendSlice(lexeme))
+            return if (value.appendSlice(lexeme[1 .. lexeme.len - 1])) // strip '"'
                 .{ .value = value }
             else |_|
                 TypeError.OutOfMemory;

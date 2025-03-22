@@ -1,11 +1,11 @@
 const std = @import("std");
 const Token = @import("tokenizer.zig").Token;
 const ArrayList = @import("std").ArrayList;
+const Allocator = std.mem.Allocator;
 
 pub const ExprIdx = usize;
 
-/// TODO: This is more like whole expression than an Ast. It should be renamed in the future.
-pub const Ast = struct {
+pub const ExprTree = struct {
     expressions: ArrayList(Expr),
 
     const Self = @This();
@@ -82,6 +82,12 @@ pub const Ast = struct {
         return self.add(expr);
     }
 
+    pub fn init(allocator: Allocator) Self {
+        return .{
+            .expressions = ArrayList(Expr).init(allocator),
+        };
+    }
+
     pub fn deinit(self: *const Self) void {
         self.expressions.deinit();
     }
@@ -100,10 +106,10 @@ pub const Expr = union(enum) {
 
     pub fn VisitorFns(Context: type, Output: type, Error: type) type {
         return struct {
-            visit_binary_expr_fn: fn (*Context, *const Ast, Expr.Binary) Error!Output,
-            visit_grouping_expr_fn: fn (*Context, *const Ast, Expr.Grouping) Error!Output,
+            visit_binary_expr_fn: fn (*Context, *const ExprTree, Expr.Binary) Error!Output,
+            visit_grouping_expr_fn: fn (*Context, *const ExprTree, Expr.Grouping) Error!Output,
             visit_literal_expr_fn: fn (*Context, Expr.Literal) Error!Output,
-            visit_unary_expr_fn: fn (*Context, *const Ast, Expr.Unary) Error!Output,
+            visit_unary_expr_fn: fn (*Context, *const ExprTree, Expr.Unary) Error!Output,
         };
     }
 
@@ -119,11 +125,11 @@ pub const Expr = union(enum) {
             const fns = vTable;
             const Self = @This();
 
-            fn visit_binary_expr(self: *const Self, ast: *const Ast, expr: Expr.Binary) E!T {
+            fn visit_binary_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Binary) E!T {
                 return fns.visit_binary_expr_fn(self.context, ast, expr);
             }
 
-            fn visit_grouping_expr(self: *const Self, ast: *const Ast, expr: Expr.Grouping) E!T {
+            fn visit_grouping_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Grouping) E!T {
                 return fns.visit_grouping_expr_fn(self.context, ast, expr);
             }
 
@@ -131,45 +137,8 @@ pub const Expr = union(enum) {
                 return fns.visit_literal_expr_fn(self.context, expr);
             }
 
-            fn visit_unary_expr(self: *const Self, ast: *const Ast, expr: Expr.Unary) E!T {
+            fn visit_unary_expr(self: *const Self, ast: *const ExprTree, expr: Expr.Unary) E!T {
                 return fns.visit_unary_expr_fn(self.context, ast, expr);
-            }
-        };
-    }
-};
-
-pub const Stmt = union(enum) {
-    expression: Expression,
-    print: Print,
-
-    pub const Expression = struct { expression: ExprIdx };
-    pub const Print = struct { expression: ExprIdx };
-
-    pub fn VisitorFns(comptime Context: type, comptime Output: type, Error: type) type {
-        return struct {
-            visit_expression_stmt_fn: fn (*Context, *const Ast, Stmt.Expression) Error!Output,
-            visit_print_stmt_fn: fn (*Context, *const Ast, Stmt.Print) Error!Output,
-        };
-    }
-
-    pub fn Visitor(
-        comptime T: type,
-        comptime Context: type,
-        comptime E: type,
-        vTable: Stmt.VisitorFns(Context, T, E),
-    ) type {
-        return struct {
-            context: *Context,
-
-            const fns = vTable;
-            const Self = @This();
-
-            fn visit_expression_stmt(self: *const Self, ast: *const Ast, stmt: Stmt.Expression) E!T {
-                return fns.visit_expression_stmt_fn(self.context, ast, stmt);
-            }
-
-            fn visit_print_stmt(self: *const Self, ast: *const Ast, stmt: Stmt.Expression) E!T {
-                return fns.visit_print_stmt_fn(self.context, ast, stmt);
             }
         };
     }

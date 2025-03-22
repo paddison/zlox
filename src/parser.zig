@@ -1,13 +1,16 @@
 const std = @import("std");
 const tkn = @import("tokenizer.zig");
-const astt = @import("ast.zig");
+const expressions = @import("expression.zig");
+const stmts = @import("statement.zig");
 
 const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
 const Token = tkn.Token;
 const TokenType = tkn.TokenType;
-const Expr = astt.Expr;
-const Ast = astt.Ast;
-const ExprIdx = astt.ExprIdx;
+const Expr = expressions.Expr;
+const Stmt = stmts.Stmt;
+const ExprTree = expressions.ExprTree;
+const ExprIdx = expressions.ExprIdx;
 const lox_error = @import("main.zig").@"error";
 
 pub const ParseError = error{
@@ -19,34 +22,55 @@ pub const Parser = struct {
     tokens: ArrayList(Token),
     source: []const u8,
     current: usize,
-    ast: Ast,
+    ast: ExprTree,
 
     const Self = @This();
 
     pub fn init(tokens: ArrayList(Token), source: []const u8) Self {
-        const allocator = std.heap.page_allocator;
         return .{
             .tokens = tokens,
             .source = source,
             .current = 0,
-            .ast = Ast{
-                .expressions = ArrayList(Expr).init(allocator),
-            },
+            .ast = undefined,
         };
     }
 
     /// Caller owns the returned Ast
-    pub fn parse(self: *Self) ?Ast {
-        if (self.expression()) |_| {
-            return self.ast;
-        } else |_| {
-            return null;
+    pub fn parse(self: *Self, allocator: Allocator) ArrayList(Stmt) {
+        var statements = ArrayList(Stmt).init(allocator);
+        while (!(self.tokens.items[self.current].t_type == .eof)) {
+            // each statement that gets parsed gets its own expression tree
+            self.ast = ExprTree.init(std.heap.page_allocator);
+            const s = self.statement() catch unreachable;
+            statements.append(s) catch unreachable;
         }
+        return statements;
     }
 
     /// experssion -> equality ;
     fn expression(self: *Self) ParseError!ExprIdx {
         return self.equality();
+    }
+
+    fn statement(self: *Self) ParseError!Stmt {
+        if (self.match(.print)) {
+            self.current += 1;
+            return self.print_statement();
+        } else {
+            return self.expression_statement();
+        }
+    }
+
+    fn print_statement(self: *Self) ParseError!Stmt {
+        _ = try self.expression();
+        try self.consume(.semicolon, "Expect ';' after value.");
+        return Stmt{ .print = .{ .expression = self.ast } }; // this moves the expression tree into the stmt
+    }
+
+    fn expression_statement(self: *Self) ParseError!Stmt {
+        _ = try self.expression();
+        try self.consume(.semicolon, "Expect ';' after expression.");
+        return Stmt{ .expression = .{ .expression = self.ast } }; //this moves the expression tree into the stmt
     }
 
     fn equality(self: *Self) ParseError!ExprIdx {
