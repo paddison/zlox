@@ -121,7 +121,7 @@ pub const Object = union(Type) {
         }
     }
 
-    fn init_nil() Self {
+    pub fn init_nil() Self {
         return .{
             .nil = {},
         };

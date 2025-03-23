@@ -35,6 +35,7 @@ pub const Expr = struct {
             .grouping => |e| visitor.visit_grouping_expr(self, e),
             .literal => |e| visitor.visit_literal_expr(e),
             .unary => |e| visitor.visit_unary_expr(self, e),
+            .variable => |e| visitor.visit_variable_expr(self, e),
         };
     }
 
@@ -80,6 +81,16 @@ pub const Expr = struct {
         return self.add(expr);
     }
 
+    pub fn init_variable(self: *Expr, name: Token) !ExprIdx {
+        const expr = ExprNode{
+            .variable = .{
+                .name = name,
+            },
+        };
+
+        return self.add(expr);
+    }
+
     pub fn init(allocator: Allocator) Expr {
         return .{
             .expressions = ArrayList(ExprNode).init(allocator),
@@ -94,11 +105,13 @@ pub const Expr = struct {
         grouping: Grouping,
         literal: Literal,
         unary: Unary,
+        variable: Variable,
 
         pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
         pub const Grouping = struct { expression: ExprIdx };
         pub const Literal = struct { value: Token };
         pub const Unary = struct { operator: Token, right: ExprIdx };
+        pub const Variable = struct { name: Token };
     };
 
     pub fn Visitor(
@@ -109,6 +122,7 @@ pub const Expr = struct {
         comptime visit_grouping_expr_fn: fn (*Context, *const Expr, ExprNode.Grouping) Error!Output,
         comptime visit_literal_expr_fn: fn (*Context, ExprNode.Literal) Error!Output,
         comptime visit_unary_expr_fn: fn (*Context, *const Expr, ExprNode.Unary) Error!Output,
+        comptime visit_variable_expr_fn: fn (*Context, *const Expr, ExprNode.Variable) Error!Output,
     ) type {
         return struct {
             context: *Context,
@@ -129,6 +143,10 @@ pub const Expr = struct {
 
             fn visit_unary_expr(self: *const V, ast: *const Expr, expr: ExprNode.Unary) Error!Output {
                 return visit_unary_expr_fn(self.context, ast, expr);
+            }
+
+            fn visit_variable_expr(self: *const V, ast: *const Expr, expr: ExprNode.Variable) Error!Output {
+                return visit_variable_expr_fn(self.context, ast, expr);
             }
         };
     }

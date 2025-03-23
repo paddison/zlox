@@ -4,7 +4,6 @@ const File = std.fs.File;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const TokenType = @import("tokenizer.zig").TokenType;
 const Token = @import("tokenizer.zig").Token;
-const AstPrinter = @import("ast_printer.zig").AstPrinter;
 const interpeter = @import("interpreter.zig");
 const Interpreter = interpeter.Interpreter;
 const Expr = @import("expression.zig").ExprNode;
@@ -12,6 +11,7 @@ const Lexeme = @import("tokenizer.zig").Lexeme;
 const Allocator = std.heap.page_allocator;
 const Parser = @import("parser.zig").Parser;
 const typing = @import("typing.zig");
+const Environment = @import("environment.zig").Environment;
 
 const InterpretingError = error{
     static,
@@ -130,9 +130,14 @@ fn run(source: [:0]u8) !void {
     }
 
     var p = Parser.init(tokens, source);
-    const statements = p.parse(allocator);
+    const statements = p.parse(allocator) orelse return;
     defer statements.deinit();
-    var interpreter = Interpreter{ .source = source, .error_payload = null, .allocator = allocator };
+    var interpreter = Interpreter{
+        .source = source,
+        .error_payload = null,
+        .allocator = allocator,
+        .environment = try Environment.init(allocator),
+    };
     _ = interpreter.interpret(statements.items) catch {};
 
     //if (p.parse()) |ast| {

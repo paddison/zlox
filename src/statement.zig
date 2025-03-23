@@ -1,12 +1,17 @@
 const expressions = @import("expression.zig");
+const tknzr = @import("tokenizer.zig");
+
 const Expr = expressions.Expr;
+const Token = tknzr.Token;
 
 pub const Stmt = union(enum) {
     expression: Expression,
     print: Print,
+    @"var": Var,
 
     pub const Expression = struct { expression: Expr };
     pub const Print = struct { expression: Expr };
+    pub const Var = struct { name: Token, initializer: ?Expr };
 
     pub fn accept(
         self: *const Stmt,
@@ -17,6 +22,7 @@ pub const Stmt = union(enum) {
         return switch (self.*) {
             .expression => |s| visitor.visit_expression_stmt(s),
             .print => |s| visitor.visit_print_stmt(s),
+            .@"var" => |s| visitor.visit_var_stmt(s),
         };
     }
 
@@ -26,6 +32,7 @@ pub const Stmt = union(enum) {
         comptime Error: type,
         comptime visit_expression_stmt_fn: fn (*Context, Stmt.Expression) Error!Output,
         comptime visit_print_stmt_fn: fn (*Context, Stmt.Print) Error!Output,
+        comptime visit_var_stmt_fn: fn (*Context, Stmt.Var) Error!Output,
     ) type {
         return struct {
             context: *Context,
@@ -38,6 +45,10 @@ pub const Stmt = union(enum) {
 
             fn visit_print_stmt(self: *const Self, stmt: Stmt.Print) Error!Output {
                 return visit_print_stmt_fn(self.context, stmt);
+            }
+
+            fn visit_var_stmt(self: *const Self, stmt: Stmt.Var) Error!Output {
+                return visit_var_stmt_fn(self.context, stmt);
             }
         };
     }

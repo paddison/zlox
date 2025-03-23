@@ -34,20 +34,29 @@ pub const Parser = struct {
     }
 
     /// Caller owns the returned Ast
-    pub fn parse(self: *Parser, allocator: Allocator) ArrayList(Stmt) {
+    pub fn parse(self: *Parser, allocator: Allocator) ?ArrayList(Stmt) {
         var statements = ArrayList(Stmt).init(allocator);
+        var had_error = false;
         while (!(self.tokens.items[self.current].t_type == .eof)) {
             // each statement that gets parsed gets its own expression tree
             self.ast = Expr.init(std.heap.page_allocator);
-            const s = self.statement() catch unreachable;
-            statements.append(s) catch unreachable;
+            if (self.declaration()) |stmt| {
+                statements.append(stmt) catch {}; // TODO: think about if this should return an error
+            } else |_| {
+                had_error = true;
+                self.synchronize();
+            }
         }
-        return statements;
+        return if (had_error) null else statements;
     }
 
     /// experssion -> equality ;
     fn expression(self: *Parser) ParseError!ExprIdx {
         return self.equality();
+    }
+
+    fn declaration(self: *Parser) ParseError!Stmt {
+        return if (self.match(.@"var")) self.var_declaration() else self.statement();
     }
 
     fn statement(self: *Parser) ParseError!Stmt {
@@ -61,13 +70,27 @@ pub const Parser = struct {
 
     fn print_statement(self: *Parser) ParseError!Stmt {
         _ = try self.expression();
-        try self.consume(.semicolon, "Expect ';' after value.");
+        _ = try self.consume(.semicolon, "Expect ';' after value.");
         return Stmt{ .print = .{ .expression = self.ast } }; // this moves the expression tree into the stmt
+    }
+
+    fn var_declaration(self: *Parser) ParseError!Stmt {
+        const name = try self.consume(.identifier, "Expect variable name.");
+
+        var initializer: ?Expr = null;
+
+        if (self.match(.equal)) {
+            _ = try self.expression();
+            initializer = self.ast;
+        }
+        _ = try self.consume(.semicolon, "Expect ';' after variable declaration.");
+
+        return Stmt{ .@"var" = .{ .name = name, .initializer = self.ast } };
     }
 
     fn expression_statement(self: *Parser) ParseError!Stmt {
         _ = try self.expression();
-        try self.consume(.semicolon, "Expect ';' after expression.");
+        _ = try self.consume(.semicolon, "Expect ';' after expression.");
         return Stmt{ .expression = .{ .expression = self.ast } }; //this moves the expression tree into the stmt
     }
 
@@ -141,12 +164,12 @@ pub const Parser = struct {
         if (self.match(.false) or self.match(.true) or self.match(.nil) or self.match(.number) or self.match(.string)) {
             ret = try self.ast.init_literal(self.tokens.items[self.current]);
             self.current += 1;
-        }
-
-        if (self.match(.left_paren)) {
+        } else if (self.match(.identifier)) {
+            ret = try self.ast.init_variable(self.tokens.items[self.current]);
+        } else if (self.match(.left_paren)) {
             self.current += 1;
             const expr = try self.expression();
-            try self.consume(.right_paren, "Expect ')' after expression.");
+            _ = try self.consume(.right_paren, "Expect ')' after expression.");
             ret = try self.ast.init_grouping(expr);
         }
 
@@ -161,9 +184,10 @@ pub const Parser = struct {
             false;
     }
 
-    fn consume(self: *Parser, token_type: TokenType, msg: []const u8) ParseError!void {
+    fn consume(self: *Parser, token_type: TokenType, msg: []const u8) ParseError!Token {
         if (self.match(token_type)) {
             self.current += 1;
+            return self.tokens.items[self.current];
         } else {
             return self.@"error"(self.tokens.items[self.current], msg);
         }
@@ -178,7 +202,7 @@ pub const Parser = struct {
     fn synchronize(self: *Parser) void {
         self.current += 1;
 
-        while (!self.is_at_end()) : (self.current += 1) {
+        while (self.tokens.items[self.current].t_type != .eof) : (self.current += 1) {
             if (self.tokens.items[self.current - 1].t_type == .semicolon) return;
 
             switch (self.tokens.items[self.current].t_type) {

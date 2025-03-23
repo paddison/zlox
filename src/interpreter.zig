@@ -13,6 +13,7 @@ const Value = typing.Value;
 const ExprNode = exprs.Expr.ExprNode;
 const Token = @import("tokenizer.zig").Token;
 const Stmt = stmts.Stmt;
+const Environment = @import("environment.zig").Environment;
 
 const number_operands_error_msg = "Operands must be numbers";
 
@@ -30,6 +31,7 @@ pub const Interpreter = struct {
     source: []const u8,
     error_payload: ?ErrorPayload,
     allocator: Allocator,
+    environment: Environment,
 
     const ExprVisitor = Expr.Visitor(
         Interpreter,
@@ -39,6 +41,7 @@ pub const Interpreter = struct {
         visit_grouping_expr,
         visit_literal_expr,
         visit_unary_expr,
+        visit_variable_expr,
     );
     const StmtVisitor = Stmt.Visitor(
         Interpreter,
@@ -46,6 +49,7 @@ pub const Interpreter = struct {
         Error,
         visit_expression_stmt,
         visit_print_stmt,
+        visit_var_stmt,
     );
     const ExprOutput = Object;
     const StmtOutput = void;
@@ -157,6 +161,15 @@ pub const Interpreter = struct {
         };
     }
 
+    pub fn visit_variable_expr(
+        self: *Interpreter,
+        expr: *const Expr,
+        expr_node: ExprNode.Variable,
+    ) Error!ExprOutput {
+        _ = expr;
+        return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse Error.runtime_error;
+    }
+
     fn evaluate(self: *Interpreter, astt: *const Expr, expr_idx: ExprIdx) Error!Object {
         return astt.accept(ExprOutput, Error, expr_idx, self.expr_visitor());
     }
@@ -176,6 +189,15 @@ pub const Interpreter = struct {
         defer self.allocator.free(value_string);
 
         stdout.print("{s}\n", .{value_string}) catch {}; //discard the error for now
+    }
+
+    pub fn visit_var_stmt(self: *Interpreter, stmt: Stmt.Var) Error!StmtOutput {
+        const value = if (stmt.initializer) |initializer|
+            try self.evaluate(&initializer, initializer.root())
+        else
+            typing.Object.init_nil();
+
+        try self.environment.define(self.source[stmt.name.lexeme.start..stmt.name.lexeme.end], value);
     }
 
     fn check_number_operands(self: *Interpreter, operator: Token, left: *const Object, right: *const Object) Error!void {

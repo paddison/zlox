@@ -47,6 +47,7 @@ pub const TokenType = enum {
     true,
     bar,
     @"while",
+    @"var",
 
     // Special.
     eof,
@@ -101,6 +102,7 @@ pub const Tokenizer = struct {
         .{ "true", .true },
         .{ "bar", .bar },
         .{ "while", .@"while" },
+        .{ "var", .@"var" },
     });
 
     pub fn next(self: *Tokenizer) Token {
