@@ -22,14 +22,14 @@ pub const Parser = struct {
     tokens: ArrayList(Token),
     source: []const u8,
     current: usize,
-    ast: Expr,
+    current_expression: Expr,
 
     pub fn init(tokens: ArrayList(Token), source: []const u8) Parser {
         return .{
             .tokens = tokens,
             .source = source,
             .current = 0,
-            .ast = undefined,
+            .current_expression = undefined,
         };
     }
 
@@ -39,7 +39,7 @@ pub const Parser = struct {
         var had_error = false;
         while (!(self.tokens.items[self.current].t_type == .eof)) {
             // each statement that gets parsed gets its own expression tree
-            self.ast = Expr.init(std.heap.page_allocator);
+            self.current_expression = Expr.init(std.heap.page_allocator);
             if (self.declaration()) |stmt| {
                 statements.append(stmt) catch {}; // TODO: think about if this should return an error
             } else |_| {
@@ -52,7 +52,7 @@ pub const Parser = struct {
 
     /// experssion -> equality ;
     fn expression(self: *Parser) ParseError!ExprIdx {
-        return self.equality();
+        return self.assignment();
     }
 
     fn declaration(self: *Parser) ParseError!Stmt {
@@ -71,7 +71,7 @@ pub const Parser = struct {
     fn print_statement(self: *Parser) ParseError!Stmt {
         _ = try self.expression();
         _ = try self.consume(.semicolon, "Expect ';' after value.");
-        return Stmt{ .print = .{ .expression = self.ast } }; // this moves the expression tree into the stmt
+        return Stmt{ .print = .{ .expression = self.current_expression } }; // this moves the expression tree into the stmt
     }
 
     fn var_declaration(self: *Parser) ParseError!Stmt {
@@ -81,17 +81,37 @@ pub const Parser = struct {
 
         if (self.match(.equal)) {
             _ = try self.expression();
-            initializer = self.ast;
+            initializer = self.current_expression;
         }
         _ = try self.consume(.semicolon, "Expect ';' after variable declaration.");
 
-        return Stmt{ .@"var" = .{ .name = name, .initializer = self.ast } };
+        return Stmt{ .@"var" = .{ .name = name, .initializer = self.current_expression } };
     }
 
     fn expression_statement(self: *Parser) ParseError!Stmt {
         _ = try self.expression();
         _ = try self.consume(.semicolon, "Expect ';' after expression.");
-        return Stmt{ .expression = .{ .expression = self.ast } }; //this moves the expression tree into the stmt
+        return Stmt{ .expression = .{ .expression = self.current_expression } }; //this moves the expression tree into the stmt
+    }
+
+    fn assignment(self: *Parser) ParseError!ExprIdx {
+        const expr = try self.equality();
+
+        if (self.match(.equal)) {
+            const equals = self.tokens.items[self.current];
+            // move past the equal token
+            self.current += 1;
+            const value = try self.assignment();
+            const expr_node = self.current_expression.get(expr);
+
+            if (expr_node == .variable) {
+                return self.current_expression.init_assign(expr_node.variable.name, value);
+            }
+
+            return self.@"error"(equals, "Invalid assignment target\n.");
+        }
+
+        return expr;
     }
 
     fn equality(self: *Parser) ParseError!ExprIdx {
@@ -101,7 +121,7 @@ pub const Parser = struct {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.comparison();
-            expr = try self.ast.init_binary(expr, operator, right);
+            expr = try self.current_expression.init_binary(expr, operator, right);
         }
 
         return expr;
@@ -114,7 +134,7 @@ pub const Parser = struct {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.term();
-            expr = try self.ast.init_binary(expr, operator, right);
+            expr = try self.current_expression.init_binary(expr, operator, right);
         }
 
         return expr;
@@ -127,7 +147,7 @@ pub const Parser = struct {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.factor();
-            expr = try self.ast.init_binary(expr, operator, right);
+            expr = try self.current_expression.init_binary(expr, operator, right);
         }
 
         return expr;
@@ -140,7 +160,7 @@ pub const Parser = struct {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.unary();
-            expr = try self.ast.init_binary(expr, operator, right);
+            expr = try self.current_expression.init_binary(expr, operator, right);
         }
 
         return expr;
@@ -151,7 +171,7 @@ pub const Parser = struct {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.unary();
-            const expr = try self.ast.init_unary(operator, right);
+            const expr = try self.current_expression.init_unary(operator, right);
 
             return expr;
         }
@@ -162,15 +182,15 @@ pub const Parser = struct {
     fn primary(self: *Parser) ParseError!ExprIdx {
         var ret: ?ExprIdx = null;
         if (self.match(.false) or self.match(.true) or self.match(.nil) or self.match(.number) or self.match(.string)) {
-            ret = try self.ast.init_literal(self.tokens.items[self.current]);
+            ret = try self.current_expression.init_literal(self.tokens.items[self.current]);
             self.current += 1;
         } else if (self.match(.identifier)) {
-            ret = try self.ast.init_variable(self.tokens.items[self.current]);
+            ret = try self.current_expression.init_variable(self.tokens.items[self.current]);
         } else if (self.match(.left_paren)) {
             self.current += 1;
             const expr = try self.expression();
             _ = try self.consume(.right_paren, "Expect ')' after expression.");
-            ret = try self.ast.init_grouping(expr);
+            ret = try self.current_expression.init_grouping(expr);
         }
 
         return ret orelse

@@ -42,6 +42,7 @@ pub const Interpreter = struct {
         visit_literal_expr,
         visit_unary_expr,
         visit_variable_expr,
+        visit_assign_expr,
     );
     const StmtVisitor = Stmt.Visitor(
         Interpreter,
@@ -168,6 +169,19 @@ pub const Interpreter = struct {
     ) Error!ExprOutput {
         _ = expr;
         return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse Error.runtime_error;
+    }
+
+    pub fn visit_assign_expr(self: *Interpreter, expr: *const Expr, node: ExprNode.Assign) Error!ExprOutput {
+        const value = try self.evaluate(expr, node.value);
+
+        self.environment.assign(self.source[node.name.lexeme.start..node.name.lexeme.end], value) catch {
+            self.error_payload = .{
+                .message = "Undefined variable.",
+                .token = node.name,
+            };
+            return Error.runtime_error;
+        };
+        return value;
     }
 
     fn evaluate(self: *Interpreter, astt: *const Expr, expr_idx: ExprIdx) Error!Object {

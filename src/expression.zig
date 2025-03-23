@@ -31,6 +31,7 @@ pub const Expr = struct {
         visitor: anytype,
     ) Error!Output {
         return switch (self.expressions.items[expr]) {
+            .assign => |e| visitor.visit_assign_expr(self, e),
             .binary => |e| visitor.visit_binary_expr(self, e),
             .grouping => |e| visitor.visit_grouping_expr(self, e),
             .literal => |e| visitor.visit_literal_expr(e),
@@ -91,6 +92,17 @@ pub const Expr = struct {
         return self.add(expr);
     }
 
+    pub fn init_assign(self: *Expr, name: Token, value: ExprIdx) !ExprIdx {
+        const expr = ExprNode{
+            .assign = .{
+                .name = name,
+                .value = value,
+            },
+        };
+
+        return self.add(expr);
+    }
+
     pub fn init(allocator: Allocator) Expr {
         return .{
             .expressions = ArrayList(ExprNode).init(allocator),
@@ -101,12 +113,14 @@ pub const Expr = struct {
         self.expressions.deinit();
     }
     pub const ExprNode = union(enum) {
+        assign: Assign,
         binary: Binary,
         grouping: Grouping,
         literal: Literal,
         unary: Unary,
         variable: Variable,
 
+        pub const Assign = struct { name: Token, value: ExprIdx };
         pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
         pub const Grouping = struct { expression: ExprIdx };
         pub const Literal = struct { value: Token };
@@ -123,30 +137,35 @@ pub const Expr = struct {
         comptime visit_literal_expr_fn: fn (*Context, ExprNode.Literal) Error!Output,
         comptime visit_unary_expr_fn: fn (*Context, *const Expr, ExprNode.Unary) Error!Output,
         comptime visit_variable_expr_fn: fn (*Context, *const Expr, ExprNode.Variable) Error!Output,
+        comptime visit_assign_expr_fn: fn (*Context, *const Expr, ExprNode.Assign) Error!Output,
     ) type {
         return struct {
             context: *Context,
 
             const V = @This();
 
-            fn visit_binary_expr(self: *const V, ast: *const Expr, expr: ExprNode.Binary) Error!Output {
-                return visit_binary_expr_fn(self.context, ast, expr);
+            fn visit_binary_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Binary) Error!Output {
+                return visit_binary_expr_fn(self.context, expr, expr_node);
             }
 
-            fn visit_grouping_expr(self: *const V, ast: *const Expr, expr: ExprNode.Grouping) Error!Output {
-                return visit_grouping_expr_fn(self.context, ast, expr);
+            fn visit_grouping_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Grouping) Error!Output {
+                return visit_grouping_expr_fn(self.context, expr, expr_node);
             }
 
-            fn visit_literal_expr(self: *const V, expr: ExprNode.Literal) Error!Output {
-                return visit_literal_expr_fn(self.context, expr);
+            fn visit_literal_expr(self: *const V, expr_node: ExprNode.Literal) Error!Output {
+                return visit_literal_expr_fn(self.context, expr_node);
             }
 
-            fn visit_unary_expr(self: *const V, ast: *const Expr, expr: ExprNode.Unary) Error!Output {
-                return visit_unary_expr_fn(self.context, ast, expr);
+            fn visit_unary_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Unary) Error!Output {
+                return visit_unary_expr_fn(self.context, expr, expr_node);
             }
 
-            fn visit_variable_expr(self: *const V, ast: *const Expr, expr: ExprNode.Variable) Error!Output {
-                return visit_variable_expr_fn(self.context, ast, expr);
+            fn visit_variable_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Variable) Error!Output {
+                return visit_variable_expr_fn(self.context, expr, expr_node);
+            }
+
+            fn visit_assign_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Assign) Error!Output {
+                return visit_assign_expr_fn(self.context, expr, expr_node);
             }
         };
     }

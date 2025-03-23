@@ -9,6 +9,11 @@ const String = []const u8;
 const Object = typing.Object;
 const Token = tknzr.Token;
 
+const Error = error{
+    undefined_variable,
+    OutOfMemory,
+};
+
 pub const Environment = struct {
     stack: ArrayList(EnvNode),
     allocator: Allocator,
@@ -25,6 +30,18 @@ pub const Environment = struct {
 
     pub fn get(self: *Environment, name: String) ?Object {
         return self.stack.items[self.stack.items.len - 1].values.get(name);
+    }
+
+    pub fn assign(self: *Environment, name: String, value: Object) Error!void {
+        std.debug.assert(self.stack.items.len > 0);
+
+        var current = self.stack.items[self.stack.items.len - 1];
+        if (current.values.contains(name)) {
+            try current.values.put(name, value);
+            return;
+        }
+
+        return Error.undefined_variable;
     }
 
     pub fn define(self: *Environment, name: String, value: Object) Allocator.Error!void {
