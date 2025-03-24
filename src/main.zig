@@ -122,6 +122,7 @@ fn run(source: [:0]u8) !void {
 
     while (true) {
         const token = tokenizer.next();
+        //std.debug.print("{any}: {s}\n", .{ token.t_type, source[token.lexeme.start..token.lexeme.end] });
         try tokens.append(token);
 
         if (token.t_type == .eof) {

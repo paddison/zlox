@@ -1,17 +1,22 @@
 const expressions = @import("expression.zig");
 const tknzr = @import("tokenizer.zig");
+const std = @import("std");
 
 const Expr = expressions.Expr;
 const Token = tknzr.Token;
+const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
 
 pub const Stmt = union(enum) {
     expression: Expression,
     print: Print,
     @"var": Var,
+    block: Block,
 
     pub const Expression = struct { expression: Expr };
     pub const Print = struct { expression: Expr };
     pub const Var = struct { name: Token, initializer: ?Expr };
+    pub const Block = struct { statements: ArrayList(Stmt) };
 
     pub fn accept(
         self: *const Stmt,
@@ -23,6 +28,7 @@ pub const Stmt = union(enum) {
             .expression => |s| visitor.visit_expression_stmt(s),
             .print => |s| visitor.visit_print_stmt(s),
             .@"var" => |s| visitor.visit_var_stmt(s),
+            .block => |s| visitor.visit_block_stmt(s),
         };
     }
 
@@ -33,6 +39,7 @@ pub const Stmt = union(enum) {
         comptime visit_expression_stmt_fn: fn (*Context, Stmt.Expression) Error!Output,
         comptime visit_print_stmt_fn: fn (*Context, Stmt.Print) Error!Output,
         comptime visit_var_stmt_fn: fn (*Context, Stmt.Var) Error!Output,
+        comptime visit_block_stmt_fn: fn (*Context, Stmt.Block) Error!Output,
     ) type {
         return struct {
             context: *Context,
@@ -49,6 +56,10 @@ pub const Stmt = union(enum) {
 
             fn visit_var_stmt(self: *const Self, stmt: Stmt.Var) Error!Output {
                 return visit_var_stmt_fn(self.context, stmt);
+            }
+
+            fn visit_block_stmt(self: *const Self, stmt: Stmt.Block) Error!Output {
+                return visit_block_stmt_fn(self.context, stmt);
             }
         };
     }

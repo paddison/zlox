@@ -4,6 +4,7 @@ const stmts = @import("statement.zig");
 const typing = @import("typing.zig");
 
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const Gpa = std.heap.GeneralPurposeAllocator;
 const Expr = exprs.Expr;
 const ExprIdx = exprs.ExprIdx;
@@ -51,6 +52,7 @@ pub const Interpreter = struct {
         visit_expression_stmt,
         visit_print_stmt,
         visit_var_stmt,
+        visit_block_stmt,
     );
     const ExprOutput = Object;
     const StmtOutput = void;
@@ -168,10 +170,15 @@ pub const Interpreter = struct {
         expr_node: ExprNode.Variable,
     ) Error!ExprOutput {
         _ = expr;
-        return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse Error.runtime_error;
+        return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse
+            Error.runtime_error;
     }
 
-    pub fn visit_assign_expr(self: *Interpreter, expr: *const Expr, node: ExprNode.Assign) Error!ExprOutput {
+    pub fn visit_assign_expr(
+        self: *Interpreter,
+        expr: *const Expr,
+        node: ExprNode.Assign,
+    ) Error!ExprOutput {
         const value = try self.evaluate(expr, node.value);
 
         self.environment.assign(self.source[node.name.lexeme.start..node.name.lexeme.end], value) catch {
@@ -190,6 +197,19 @@ pub const Interpreter = struct {
 
     fn execute(self: *Interpreter, statement: Stmt) Error!StmtOutput {
         return statement.accept(StmtOutput, Error, self.stmt_visitor());
+    }
+
+    fn execut_block(self: *Interpreter, statements: ArrayList(Stmt)) Error!void {
+        try self.environment.push_scope();
+        defer self.environment.pop_scope();
+
+        for (statements.items) |statement| {
+            try self.execute(statement);
+        }
+    }
+
+    pub fn visit_block_stmt(self: *Interpreter, statement: Stmt.Block) Error!StmtOutput {
+        return self.execut_block(statement.statements);
     }
 
     pub fn visit_expression_stmt(self: *Interpreter, stmt: Stmt.Expression) Error!StmtOutput {
@@ -211,6 +231,8 @@ pub const Interpreter = struct {
         else
             typing.Object.init_nil();
 
+        //std.debug.print("{any}\n", .{stmt});
+        //std.debug.print("{s}\n", .{value.string.value.items});
         try self.environment.define(self.source[stmt.name.lexeme.start..stmt.name.lexeme.end], value);
     }
 

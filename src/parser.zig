@@ -38,8 +38,6 @@ pub const Parser = struct {
         var statements = ArrayList(Stmt).init(allocator);
         var had_error = false;
         while (!(self.tokens.items[self.current].t_type == .eof)) {
-            // each statement that gets parsed gets its own expression tree
-            self.current_expression = Expr.init(std.heap.page_allocator);
             if (self.declaration()) |stmt| {
                 statements.append(stmt) catch {}; // TODO: think about if this should return an error
             } else |_| {
@@ -56,13 +54,25 @@ pub const Parser = struct {
     }
 
     fn declaration(self: *Parser) ParseError!Stmt {
-        return if (self.match(.@"var")) self.var_declaration() else self.statement();
+        // each statement that gets parsed gets its own expression tree
+        self.current_expression = Expr.init(std.heap.page_allocator);
+        if (self.match(.@"var")) {
+            self.current += 1;
+            return self.var_declaration();
+        } else {
+            return self.statement();
+        }
     }
 
     fn statement(self: *Parser) ParseError!Stmt {
         if (self.match(.print)) {
             self.current += 1;
             return self.print_statement();
+        } else if (self.match(.left_brace)) {
+            self.current += 1;
+            return Stmt{
+                .block = Stmt.Block{ .statements = try self.block() },
+            };
         } else {
             return self.expression_statement();
         }
@@ -80,6 +90,7 @@ pub const Parser = struct {
         var initializer: ?Expr = null;
 
         if (self.match(.equal)) {
+            self.current += 1;
             _ = try self.expression();
             initializer = self.current_expression;
         }
@@ -92,6 +103,18 @@ pub const Parser = struct {
         _ = try self.expression();
         _ = try self.consume(.semicolon, "Expect ';' after expression.");
         return Stmt{ .expression = .{ .expression = self.current_expression } }; //this moves the expression tree into the stmt
+    }
+
+    fn block(self: *Parser) ParseError!ArrayList(Stmt) {
+        var statements = ArrayList(Stmt).init(std.heap.page_allocator);
+
+        while (!self.match(.right_brace) and !(self.tokens.items[self.current].t_type == .eof)) {
+            try statements.append(try self.declaration());
+        }
+
+        _ = try self.consume(.right_brace, "Expect '}' after block.");
+
+        return statements;
     }
 
     fn assignment(self: *Parser) ParseError!ExprIdx {
@@ -186,6 +209,7 @@ pub const Parser = struct {
             self.current += 1;
         } else if (self.match(.identifier)) {
             ret = try self.current_expression.init_variable(self.tokens.items[self.current]);
+            self.current += 1;
         } else if (self.match(.left_paren)) {
             self.current += 1;
             const expr = try self.expression();
@@ -206,7 +230,7 @@ pub const Parser = struct {
 
     fn consume(self: *Parser, token_type: TokenType, msg: []const u8) ParseError!Token {
         if (self.match(token_type)) {
-            self.current += 1;
+            defer self.current += 1;
             return self.tokens.items[self.current];
         } else {
             return self.@"error"(self.tokens.items[self.current], msg);
