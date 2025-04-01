@@ -68,6 +68,9 @@ pub const Parser = struct {
         if (self.match(.print)) {
             self.current += 1;
             return self.print_statement();
+        } else if (self.match(.@"if")) {
+            self.current += 1;
+            return self.if_statement();
         } else if (self.match(.left_brace)) {
             self.current += 1;
             return Stmt{
@@ -82,6 +85,35 @@ pub const Parser = struct {
         _ = try self.expression();
         _ = try self.consume(.semicolon, "Expect ';' after value.");
         return Stmt{ .print = .{ .expression = self.current_expression } }; // this moves the expression tree into the stmt
+    }
+
+    fn if_statement(self: *Parser) ParseError!Stmt {
+        const alloc = std.heap.page_allocator;
+        _ = try self.consume(.left_paren, "Expect '(' after 'if'");
+        _ = try self.expression();
+        _ = try self.consume(.right_paren, "Expect ')' after if condition");
+
+        const then_branch: *Stmt = try alloc.create(Stmt);
+        errdefer alloc.destroy(then_branch);
+        then_branch.* = try self.statement();
+
+        var else_branch: ?*Stmt = null;
+
+        if (self.match(.@"else")) {
+            self.current += 1;
+            else_branch = try alloc.create(Stmt);
+            errdefer alloc.destroy(else_branch.?);
+            else_branch.?.* = try self.statement();
+        }
+
+        return Stmt{
+            .@"if" = .{
+                .condition = self.current_expression,
+                .then_branch = then_branch,
+                .else_branch = else_branch,
+                .alloc = alloc,
+            },
+        };
     }
 
     fn var_declaration(self: *Parser) ParseError!Stmt {
