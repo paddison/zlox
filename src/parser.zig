@@ -7,7 +7,7 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const Token = tkn.Token;
 const TokenType = tkn.TokenType;
-const ExprNode = expressions.ExprNode;
+const ExprNode = expressions.Expr.ExprNode;
 const Stmt = stmts.Stmt;
 const Expr = expressions.Expr;
 const ExprIdx = expressions.ExprIdx;
@@ -150,7 +150,7 @@ pub const Parser = struct {
     }
 
     fn assignment(self: *Parser) ParseError!ExprIdx {
-        const expr = try self.equality();
+        const expr = try self.@"or"();
 
         if (self.match(.equal)) {
             const equals = self.tokens.items[self.current];
@@ -164,6 +164,39 @@ pub const Parser = struct {
             }
 
             return self.@"error"(equals, "Invalid assignment target\n.");
+        }
+
+        return expr;
+    }
+
+    fn @"or"(self: *Parser) ParseError!ExprIdx {
+        var expr = try self.@"and"();
+
+        while (self.match(.@"or")) {
+            const operator = self.tokens.items[self.current];
+            self.current += 1;
+            const right = try self.@"and"();
+            expr = try self.current_expression.init_logical(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    fn @"and"(self: *Parser) ParseError!ExprIdx {
+        var expr = try self.equality();
+
+        while (self.match(.@"and")) {
+            const operator = self.tokens.items[self.current];
+            self.current += 1;
+            const right = try self.equality();
+            const node = ExprNode{
+                .logical = .{
+                    .left = expr,
+                    .operator = operator,
+                    .right = right,
+                },
+            };
+            expr = try self.current_expression.add(node);
         }
 
         return expr;

@@ -37,6 +37,7 @@ pub const Expr = struct {
             .literal => |e| visitor.visit_literal_expr(e),
             .unary => |e| visitor.visit_unary_expr(self, e),
             .variable => |e| visitor.visit_variable_expr(self, e),
+            .logical => |e| visitor.visit_logical_expr(self, e),
         };
     }
 
@@ -103,6 +104,17 @@ pub const Expr = struct {
         return self.add(expr);
     }
 
+    pub fn init_logical(self: *Expr, left: ExprIdx, operator: Token, right: ExprIdx) !ExprIdx {
+        const node = ExprNode{
+            .logical = .{
+                .left = left,
+                .operator = operator,
+                .right = right,
+            },
+        };
+        return self.add(node);
+    }
+
     pub fn init(allocator: Allocator) Expr {
         return .{
             .expressions = ArrayList(ExprNode).init(allocator),
@@ -119,6 +131,7 @@ pub const Expr = struct {
         literal: Literal,
         unary: Unary,
         variable: Variable,
+        logical: Logical,
 
         pub const Assign = struct { name: Token, value: ExprIdx };
         pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
@@ -126,6 +139,7 @@ pub const Expr = struct {
         pub const Literal = struct { value: Token };
         pub const Unary = struct { operator: Token, right: ExprIdx };
         pub const Variable = struct { name: Token };
+        pub const Logical = struct { left: ExprIdx, operator: Token, right: ExprIdx };
     };
 
     pub fn Visitor(
@@ -138,6 +152,7 @@ pub const Expr = struct {
         comptime visit_unary_expr_fn: fn (*Context, *const Expr, ExprNode.Unary) Error!Output,
         comptime visit_variable_expr_fn: fn (*Context, *const Expr, ExprNode.Variable) Error!Output,
         comptime visit_assign_expr_fn: fn (*Context, *const Expr, ExprNode.Assign) Error!Output,
+        comptime visit_logical_expr_fn: fn (*Context, *const Expr, ExprNode.Logical) Error!Output,
     ) type {
         return struct {
             context: *Context,
@@ -166,6 +181,10 @@ pub const Expr = struct {
 
             fn visit_assign_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Assign) Error!Output {
                 return visit_assign_expr_fn(self.context, expr, expr_node);
+            }
+
+            fn visit_logical_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Logical) Error!Output {
+                return visit_logical_expr_fn(self.context, expr, expr_node);
             }
         };
     }

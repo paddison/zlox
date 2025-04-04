@@ -44,6 +44,7 @@ pub const Interpreter = struct {
         visit_unary_expr,
         visit_variable_expr,
         visit_assign_expr,
+        visit_logical_expr,
     );
     const StmtVisitor = Stmt.Visitor(
         Interpreter,
@@ -153,6 +154,18 @@ pub const Interpreter = struct {
         return Object{
             .nil = {},
         };
+    }
+
+    pub fn visit_logical_expr(self: *Interpreter, expr: *const Expr, expr_node: ExprNode.Logical) Error!ExprOutput {
+        const left = try self.evaluate(expr, expr_node.left);
+
+        if (expr_node.operator.t_type == .@"or") {
+            if (left.is_truthy().bool.value) return left;
+        } else {
+            if (!left.is_truthy().bool.value) return left;
+        }
+
+        return self.evaluate(expr, expr_node.right);
     }
 
     pub fn visit_unary_expr(self: *Interpreter, astt: *const Expr, expr: ExprNode.Unary) Error!ExprOutput {
