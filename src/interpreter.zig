@@ -55,6 +55,7 @@ pub const Interpreter = struct {
         visit_var_stmt,
         visit_block_stmt,
         visit_if_stmt,
+        visit_while_stmt,
     );
     const ExprOutput = Object;
     const StmtOutput = void;
@@ -237,6 +238,12 @@ pub const Interpreter = struct {
         defer self.allocator.free(value_string);
 
         stdout.print("{s}\n", .{value_string}) catch {}; //discard the error for now
+    }
+
+    pub fn visit_while_stmt(self: *Interpreter, stmt: Stmt.While) Error!StmtOutput {
+        while ((try self.evaluate(&stmt.condition, stmt.condition.root())).is_truthy().bool.value) {
+            try self.execute(stmt.body.*);
+        }
     }
 
     pub fn visit_if_stmt(self: *Interpreter, stmt: Stmt.If) Error!StmtOutput {

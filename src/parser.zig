@@ -68,6 +68,9 @@ pub const Parser = struct {
         if (self.match(.print)) {
             self.current += 1;
             return self.print_statement();
+        } else if (self.match(.@"while")) {
+            self.current += 1;
+            return self.while_statement();
         } else if (self.match(.@"if")) {
             self.current += 1;
             return self.if_statement();
@@ -85,6 +88,24 @@ pub const Parser = struct {
         _ = try self.expression();
         _ = try self.consume(.semicolon, "Expect ';' after value.");
         return Stmt{ .print = .{ .expression = self.current_expression } }; // this moves the expression tree into the stmt
+    }
+
+    fn while_statement(self: *Parser) ParseError!Stmt {
+        _ = try self.consume(.left_paren, "Expect '(' after 'while'.");
+        _ = try self.expression();
+        _ = try self.consume(.right_paren, "Expect ')' after condition.");
+        const body = try self.statement();
+        const alloc = std.heap.page_allocator;
+        const body_ptr = try alloc.create(Stmt);
+        body_ptr.* = body;
+
+        return Stmt{
+            .@"while" = .{
+                .condition = self.current_expression,
+                .body = body_ptr,
+                .alloc = alloc,
+            },
+        };
     }
 
     fn if_statement(self: *Parser) ParseError!Stmt {

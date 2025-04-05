@@ -13,6 +13,7 @@ pub const Stmt = union(enum) {
     print: Print,
     @"var": Var,
     block: Block,
+    @"while": While,
 
     pub const Expression = struct { expression: Expr };
     pub const If = struct {
@@ -24,6 +25,11 @@ pub const Stmt = union(enum) {
     pub const Print = struct { expression: Expr };
     pub const Var = struct { name: Token, initializer: ?Expr };
     pub const Block = struct { statements: ArrayList(Stmt) };
+    pub const While = struct {
+        condition: Expr,
+        body: *const Stmt,
+        alloc: Allocator,
+    };
 
     pub fn accept(
         self: *const Stmt,
@@ -37,6 +43,7 @@ pub const Stmt = union(enum) {
             .print => |s| visitor.visit_print_stmt(s),
             .@"var" => |s| visitor.visit_var_stmt(s),
             .block => |s| visitor.visit_block_stmt(s),
+            .@"while" => |s| visitor.visit_while_stmt(s),
         };
     }
 
@@ -49,6 +56,7 @@ pub const Stmt = union(enum) {
         comptime visit_var_stmt_fn: fn (*Context, Stmt.Var) Error!Output,
         comptime visit_block_stmt_fn: fn (*Context, Stmt.Block) Error!Output,
         comptime visit_if_stmt_fn: fn (*Context, Stmt.If) Error!Output,
+        comptime visit_while_stmt_fn: fn (*Context, Stmt.While) Error!Output,
     ) type {
         return struct {
             context: *Context,
@@ -73,6 +81,10 @@ pub const Stmt = union(enum) {
 
             fn visit_block_stmt(self: *const Self, stmt: Stmt.Block) Error!Output {
                 return visit_block_stmt_fn(self.context, stmt);
+            }
+
+            fn visit_while_stmt(self: *const Self, stmt: Stmt.While) Error!Output {
+                return visit_while_stmt_fn(self.context, stmt);
             }
         };
     }
