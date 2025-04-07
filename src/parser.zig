@@ -208,6 +208,13 @@ pub const Parser = struct {
             },
         };
 
+        if (initializer) |i| {
+            var statements = ArrayList(Stmt).init(std.heap.page_allocator);
+            try statements.append(i);
+            try statements.append(body);
+            body = Stmt{ .block = .{ .statements = statements } };
+        }
+
         return body;
     }
 
@@ -255,8 +262,8 @@ pub const Parser = struct {
             self.current += 1;
             const value = try self.assignment(expression);
 
-            if (expression.get(value) == .variable) {
-                return expression.init_assign(expression.get(value).variable.name, value);
+            if (expression.get(expr) == .variable) {
+                return expression.init_assign(expression.get(expr).variable.name, value);
             }
 
             return self.@"error"(equals, "Invalid assignment target\n.");
@@ -314,7 +321,7 @@ pub const Parser = struct {
     fn comparison(self: *Parser, expression: *Expr) ParseError!ExprIdx {
         var expr = try self.term(expression);
 
-        while (self.match(.bang_equal) or self.match(.equal_equal)) {
+        while (self.match(.greater) or self.match(.greater_equal) or self.match(.less) or self.match(.less_equal)) {
             const operator = self.tokens.items[self.current];
             self.current += 1;
             const right = try self.term(expression);

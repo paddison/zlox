@@ -62,7 +62,7 @@ pub const Interpreter = struct {
 
     pub fn interpret(self: *Interpreter, statements: []const Stmt) Error!void {
         for (statements) |statement| {
-            self.execute(statement) catch {};
+            try self.execute(statement);
         }
     }
 
@@ -185,8 +185,13 @@ pub const Interpreter = struct {
         expr_node: ExprNode.Variable,
     ) Error!ExprOutput {
         _ = expr;
-        return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse
-            Error.runtime_error;
+        return self.environment.get(self.source[expr_node.name.lexeme.start..expr_node.name.lexeme.end]) orelse {
+            self.error_payload = .{
+                .message = "Variable not found.",
+                .token = expr_node.name,
+            };
+            return Error.runtime_error;
+        };
     }
 
     pub fn visit_assign_expr(
@@ -261,8 +266,6 @@ pub const Interpreter = struct {
         else
             typing.Object.init_nil();
 
-        //std.debug.print("{any}\n", .{stmt});
-        //std.debug.print("{s}\n", .{value.string.value.items});
         try self.environment.define(self.source[stmt.name.lexeme.start..stmt.name.lexeme.end], value);
     }
 
