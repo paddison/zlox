@@ -183,6 +183,31 @@ pub const Parser = struct {
             body = Stmt{ .block = .{ .statements = statements } };
         }
 
+        if (condition == null) {
+            condition = Expr.init(std.heap.page_allocator);
+            const value = Token{
+                .lexeme = .{
+                    .start = 0,
+                    .end = 0,
+                },
+                .line = 0,
+                .t_type = .true,
+            };
+            _ = try condition.?.init_literal(value);
+        }
+
+        var alloc = std.heap.page_allocator;
+        const body_ptr = try alloc.create(Stmt);
+        body_ptr.* = body;
+
+        body = Stmt{
+            .@"while" = .{
+                .condition = condition.?,
+                .body = body_ptr,
+                .alloc = alloc,
+            },
+        };
+
         return body;
     }
 
