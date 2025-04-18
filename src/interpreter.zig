@@ -39,6 +39,7 @@ pub const Interpreter = struct {
         ExprOutput,
         Error,
         visit_binary_expr,
+        visit_call_expr,
         visit_grouping_expr,
         visit_literal_expr,
         visit_unary_expr,
@@ -127,6 +128,27 @@ pub const Interpreter = struct {
                 return right.equals(&left);
             },
             else => unreachable,
+        }
+    }
+
+    pub fn visit_call_expr(self: *Interpreter, expression: *const Expr, expr_node: ExprNode.Call) Error!ExprOutput {
+        var callee = try self.evaluate(expression, expression.root());
+
+        var arguments = ArrayList(Object).init(std.heap.page_allocator);
+
+        for (expr_node.arguments.items) |argument| {
+            try arguments.append(try self.evaluate(&argument, argument.root()));
+        }
+
+        switch (callee) {
+            .callable => return callee.callable.call(self, arguments.items),
+            else => {
+                self.error_payload = ErrorPayload{
+                    .token = expr_node.paren,
+                    .message = "Can only call functions and classes.",
+                };
+                return Error.runtime_error;
+            },
         }
     }
 
@@ -290,6 +312,7 @@ pub const Interpreter = struct {
                 std.fmt.allocPrint(self.allocator, "true", .{})
             else
                 std.fmt.allocPrint(self.allocator, "false", .{}),
+            .callable => std.fmt.allocPrint(self.allocator, "<Callable>", .{}),
         };
     }
 };

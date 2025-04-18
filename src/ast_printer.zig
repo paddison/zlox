@@ -59,7 +59,11 @@ pub const AstPrinter = struct {
         try ast.accept(Output, Error, expr.right, v);
     }
 
-    fn visit_grouping_expr(self: *AstPrinter, ast: *const Ast, expr: Expr.Grouping) Error!Output {
+    fn visit_grouping_expr(
+        self: *AstPrinter,
+        ast: *const Ast,
+        expr: Expr.Grouping,
+    ) Error!Output {
         self.output.append('(') catch {};
         const v = self.visitor();
         try ast.accept(Output, Error, expr.expression, v);

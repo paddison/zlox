@@ -36,7 +36,6 @@ pub const Environment = struct {
             var iter = env.keyIterator();
             while (iter.next()) |key| {
                 _ = key;
-                //std.debug.print("{s}\n", .{key.*});
             }
             if (self.stack.items[number_of_envs - current_env].values.get(name)) |value|
                 return value;

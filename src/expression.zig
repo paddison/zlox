@@ -33,6 +33,7 @@ pub const Expr = struct {
         return switch (self.expressions.items[expr]) {
             .assign => |e| visitor.visit_assign_expr(self, e),
             .binary => |e| visitor.visit_binary_expr(self, e),
+            .call => |e| visitor.visit_call_expr(self, e),
             .grouping => |e| visitor.visit_grouping_expr(self, e),
             .literal => |e| visitor.visit_literal_expr(e),
             .unary => |e| visitor.visit_unary_expr(self, e),
@@ -47,6 +48,17 @@ pub const Expr = struct {
                 .left = left,
                 .operator = operator,
                 .right = right,
+            },
+        };
+        return self.add(expr);
+    }
+
+    pub fn init_call(self: *Expr, callee: ExprIdx, paren: Token, arguments: ArrayList(Expr)) !ExprIdx {
+        const expr = ExprNode{
+            .call = ExprNode.Call{
+                .callee = callee,
+                .paren = paren,
+                .arguments = arguments,
             },
         };
         return self.add(expr);
@@ -127,6 +139,7 @@ pub const Expr = struct {
     pub const ExprNode = union(enum) {
         assign: Assign,
         binary: Binary,
+        call: Call,
         grouping: Grouping,
         literal: Literal,
         unary: Unary,
@@ -135,6 +148,7 @@ pub const Expr = struct {
 
         pub const Assign = struct { name: Token, value: ExprIdx };
         pub const Binary = struct { left: ExprIdx, operator: Token, right: ExprIdx };
+        pub const Call = struct { callee: ExprIdx, paren: Token, arguments: ArrayList(Expr) };
         pub const Grouping = struct { expression: ExprIdx };
         pub const Literal = struct { value: Token };
         pub const Unary = struct { operator: Token, right: ExprIdx };
@@ -147,6 +161,7 @@ pub const Expr = struct {
         comptime Output: type,
         comptime Error: type,
         comptime visit_binary_expr_fn: fn (*Context, *const Expr, ExprNode.Binary) Error!Output,
+        comptime visit_call_expr_fn: fn (*Context, *const Expr, ExprNode.Call) Error!Output,
         comptime visit_grouping_expr_fn: fn (*Context, *const Expr, ExprNode.Grouping) Error!Output,
         comptime visit_literal_expr_fn: fn (*Context, ExprNode.Literal) Error!Output,
         comptime visit_unary_expr_fn: fn (*Context, *const Expr, ExprNode.Unary) Error!Output,
@@ -161,6 +176,10 @@ pub const Expr = struct {
 
             fn visit_binary_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Binary) Error!Output {
                 return visit_binary_expr_fn(self.context, expr, expr_node);
+            }
+
+            fn visit_call_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Call) Error!Output {
+                return visit_call_expr_fn(self.context, expr, expr_node);
             }
 
             fn visit_grouping_expr(self: *const V, expr: *const Expr, expr_node: ExprNode.Grouping) Error!Output {

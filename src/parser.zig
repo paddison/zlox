@@ -367,7 +367,43 @@ pub const Parser = struct {
             return expr;
         }
 
-        return try self.primary(expression);
+        return try self.call(expression);
+    }
+
+    fn finish_call(self: *Parser, callee: ExprIdx, parent_expression: *Expr) ParseError!ExprIdx {
+        var arguments = ArrayList(Expr).init(std.heap.page_allocator);
+        if (!self.match(.right_paren)) {
+            while (true) {
+                if (arguments.items.len >= 255) {
+                    return self.@"error"(self.tokens.items[self.current], "Can't have more than 255 arguments.");
+                }
+                var expression = Expr.init(std.heap.page_allocator);
+                _ = try self.expression_p(&expression);
+                try arguments.append(expression);
+                if (!self.match(.comma)) {
+                    break;
+                }
+                self.current += 1;
+            }
+        }
+
+        const paren = try self.consume(.right_paren, "Expect ')' after arguments.");
+
+        return try parent_expression.init_call(callee, paren, arguments);
+    }
+
+    fn call(self: *Parser, expression: *Expr) ParseError!ExprIdx {
+        var expr = try self.primary(expression);
+
+        while (true) {
+            if (self.match(.left_paren)) {
+                expr = try self.finish_call(expr, expression);
+            } else {
+                break;
+            }
+        }
+
+        return expr;
     }
 
     fn primary(self: *Parser, expression: *Expr) ParseError!ExprIdx {

@@ -2,6 +2,7 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const Literal = @import("expression.zig").Expr.Literal;
+const Interpreter = @import("interpreter.zig").Interpreter;
 
 const TypeError = error{
     invalid_lexeme,
@@ -13,6 +14,7 @@ pub const Type = enum {
     number,
     string,
     bool,
+    callable,
 
     pub const Number = struct {
         value: f32,
@@ -62,6 +64,20 @@ pub const Type = enum {
     };
 
     pub const Nil = struct {};
+
+    pub const Callable = union {
+        function: Function,
+
+        pub fn call(self: *Callable, interpreter: *Interpreter, arguments: []const Object) Object {
+            _ = self;
+            _ = interpreter;
+            _ = arguments;
+
+            return Object.init_nil();
+        }
+    };
+
+    pub const Function = struct {};
 };
 
 pub const Object = union(Type) {
@@ -69,6 +85,7 @@ pub const Object = union(Type) {
     number: Type.Number,
     string: Type.String,
     bool: Type.Bool,
+    callable: Type.Callable,
 
     const Self = @This();
 
@@ -214,6 +231,7 @@ pub const Object = union(Type) {
                 .number => self.number.value == self.number.value,
                 .string => std.mem.eql(u8, self.string.value.items, other.string.value.items),
                 .bool => self.bool.value == other.bool.value,
+                .callable => unreachable,
             }
         else
             false;
