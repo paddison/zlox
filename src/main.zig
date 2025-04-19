@@ -133,12 +133,8 @@ fn run(source: [:0]u8) !void {
     var p = Parser.init(tokens, source);
     const statements = p.parse(allocator) orelse return;
     defer statements.deinit();
-    var interpreter = Interpreter{
-        .source = source,
-        .error_payload = null,
-        .allocator = allocator,
-        .environment = try Environment.init(allocator),
-    };
+    var interpreter = try Interpreter.init(source, allocator);
+
     _ = interpreter.interpret(statements.items) catch |e| {
         std.log.err("Error while executing: {!}\n", .{e});
         if (interpreter.error_payload) |payload| {

@@ -61,6 +61,23 @@ pub const Interpreter = struct {
     const ExprOutput = Object;
     const StmtOutput = void;
 
+    pub fn init(source: []const u8, allocator: Allocator) Error!Interpreter {
+        var environment = try Environment.init(allocator);
+
+        try environment.define("clock", Object{
+            .callable = Type.Callable{
+                .clock = Type.Clock{},
+            },
+        });
+
+        return Interpreter{
+            .source = source,
+            .error_payload = null,
+            .allocator = allocator,
+            .environment = environment,
+        };
+    }
+
     pub fn interpret(self: *Interpreter, statements: []const Stmt) Error!void {
         for (statements) |statement| {
             try self.execute(statement);
@@ -141,7 +158,17 @@ pub const Interpreter = struct {
         }
 
         switch (callee) {
-            .callable => return callee.callable.call(self, arguments.items),
+            .callable => |*callable| {
+                if (arguments.items.len != callable.arity()) {
+                    self.error_payload = ErrorPayload{
+                        .token = expr_node.paren,
+                        .message = "Expected number of arguments does not match provided number of arguments.",
+                    };
+                    return Error.runtime_error;
+                } else {
+                    return callable.call(self, arguments.items);
+                }
+            },
             else => {
                 self.error_payload = ErrorPayload{
                     .token = expr_node.paren,

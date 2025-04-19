@@ -17,12 +17,13 @@ pub const Type = enum {
     callable,
 
     pub const Number = struct {
-        value: f32,
+        const N = f64;
+        value: N,
 
         const Self = @This();
 
         fn init(lexeme: []const u8) TypeError!Self {
-            return if (std.fmt.parseFloat(f32, lexeme)) |n|
+            return if (std.fmt.parseFloat(N, lexeme)) |n|
                 .{ .value = n }
             else |_|
                 TypeError.invalid_lexeme;
@@ -65,19 +66,59 @@ pub const Type = enum {
 
     pub const Nil = struct {};
 
-    pub const Callable = union {
+    pub const Callable = union(enum) {
         function: Function,
+        // builtins
+        clock: Clock,
+
+        pub fn arity(self: *const Callable) usize {
+            return switch (self.*) {
+                .function => |f| f.arity(),
+                .clock => |f| f.arity(),
+            };
+        }
 
         pub fn call(self: *Callable, interpreter: *Interpreter, arguments: []const Object) Object {
+            return switch (self.*) {
+                .function => |*f| f.call(interpreter, arguments),
+                .clock => |*f| f.call(interpreter, arguments),
+            };
+        }
+    };
+
+    pub const Function = struct {
+        pub fn call(self: *Function, interpreter: *Interpreter, arguments: []const Object) Object {
             _ = self;
             _ = interpreter;
             _ = arguments;
 
             return Object.init_nil();
         }
+
+        pub fn arity(self: *const Function) usize {
+            _ = self;
+            return 0;
+        }
     };
 
-    pub const Function = struct {};
+    pub const Clock = struct {
+        pub fn call(self: *const Clock, interpreter: *Interpreter, arguments: []const Object) Object {
+            _ = self;
+            _ = interpreter;
+            _ = arguments;
+            const time: f64 = @floatFromInt(std.time.milliTimestamp());
+            return Object{
+                .number = Type.Number{
+                    .value = time / 1000.0,
+                },
+            };
+        }
+
+        pub fn arity(self: *const Clock) usize {
+            _ = self;
+            return 0;
+        }
+    };
 };
 
 pub const Object = union(Type) {
