@@ -147,7 +147,7 @@ pub const Object = union(Type) {
         const T = @TypeOf(data);
         const value = switch (@typeInfo(T)) {
             .pointer => |lexeme| switch (lexeme.size) {
-                .Slice => try Type.Number.init(data),
+                .slice => try Type.Number.init(data),
                 else => @compileError("Expect []const u8 when creating number"),
             },
             else => @compileError("Expect []const u8 when creating number"),
@@ -160,7 +160,7 @@ pub const Object = union(Type) {
         const T = @TypeOf(data);
         const value = switch (@typeInfo(T)) {
             .pointer => |lexeme| switch (lexeme.size) {
-                .Slice => try Type.String.init(data),
+                .slice => try Type.String.init(data),
                 else => @compileError("Expect []const u8 when creating string"),
             },
             else => @compileError("Expect []const u8 when creating string"),

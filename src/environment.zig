@@ -70,7 +70,7 @@ pub const Environment = struct {
 
     pub fn pop_scope(self: *Environment) void {
         std.debug.assert(self.stack.items.len > 1);
-        var env = self.stack.pop();
+        var env = self.stack.pop().?;
         env.values.deinit();
     }
 };
