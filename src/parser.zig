@@ -52,7 +52,10 @@ pub const Parser = struct {
     }
 
     fn declaration(self: *Parser) ParseError!Stmt {
-        if (self.match(.@"var")) {
+        if (self.match(.fun)) {
+            self.current += 1;
+            return self.function("function");
+        } else if (self.match(.@"var")) {
             self.current += 1;
             return self.var_declaration();
         } else {
@@ -86,15 +89,15 @@ pub const Parser = struct {
     fn print_statement(self: *Parser) ParseError!Stmt {
         var expression = Expr.init(std.heap.page_allocator);
         _ = try self.expression_p(&expression);
-        _ = try self.consume(.semicolon, "Expect ';' after value.");
+        _ = try self.consume(.semicolon, "Expect ';' after value.", .{});
         return Stmt{ .print = .{ .expression = expression } }; // this moves the expression tree into the stmt
     }
 
     fn while_statement(self: *Parser) ParseError!Stmt {
-        _ = try self.consume(.left_paren, "Expect '(' after 'while'.");
+        _ = try self.consume(.left_paren, "Expect '(' after 'while'.", .{});
         var condition = Expr.init(std.heap.page_allocator);
         _ = try self.expression_p(&condition);
-        _ = try self.consume(.right_paren, "Expect ')' after condition.");
+        _ = try self.consume(.right_paren, "Expect ')' after condition.", .{});
         const body = try self.statement();
         const alloc = std.heap.page_allocator;
         const body_ptr = try alloc.create(Stmt);
@@ -111,10 +114,10 @@ pub const Parser = struct {
 
     fn if_statement(self: *Parser) ParseError!Stmt {
         const alloc = std.heap.page_allocator;
-        _ = try self.consume(.left_paren, "Expect '(' after 'if'");
+        _ = try self.consume(.left_paren, "Expect '(' after 'if'", .{});
         var condition = Expr.init(std.heap.page_allocator);
         _ = try self.expression_p(&condition);
-        _ = try self.consume(.right_paren, "Expect ')' after if condition");
+        _ = try self.consume(.right_paren, "Expect ')' after if condition", .{});
 
         const then_branch: *Stmt = try alloc.create(Stmt);
         errdefer alloc.destroy(then_branch);
@@ -140,7 +143,7 @@ pub const Parser = struct {
     }
 
     fn for_statement(self: *Parser) ParseError!Stmt {
-        _ = try self.consume(.left_paren, "Expect '(' after 'for'.");
+        _ = try self.consume(.left_paren, "Expect '(' after 'for'.", .{});
 
         var initializer: ?Stmt = undefined;
 
@@ -161,7 +164,7 @@ pub const Parser = struct {
             _ = try self.expression_p(&(condition.?));
         }
 
-        _ = try self.consume(.semicolon, "Expect ';' after loop condition");
+        _ = try self.consume(.semicolon, "Expect ';' after loop condition", .{});
 
         var increment: ?Expr = null;
         if (!self.match(.right_paren)) {
@@ -169,7 +172,7 @@ pub const Parser = struct {
             _ = try self.expression_p(&(increment.?));
         }
 
-        _ = try self.consume(.right_paren, "Expect ')' after for clauses");
+        _ = try self.consume(.right_paren, "Expect ')' after for clauses", .{});
 
         var body = try self.statement();
         if (increment) |incr| {
@@ -219,7 +222,7 @@ pub const Parser = struct {
     }
 
     fn var_declaration(self: *Parser) ParseError!Stmt {
-        const name = try self.consume(.identifier, "Expect variable name.");
+        const name = try self.consume(.identifier, "Expect variable name.", .{});
 
         var initializer: ?Expr = null;
 
@@ -228,7 +231,7 @@ pub const Parser = struct {
             initializer = Expr.init(std.heap.page_allocator);
             _ = try self.expression_p(&(initializer.?));
         }
-        _ = try self.consume(.semicolon, "Expect ';' after variable declaration.");
+        _ = try self.consume(.semicolon, "Expect ';' after variable declaration.", .{});
 
         return Stmt{ .@"var" = .{ .name = name, .initializer = initializer } };
     }
@@ -237,8 +240,43 @@ pub const Parser = struct {
         var expression = Expr.init(std.heap.page_allocator);
 
         _ = try self.expression_p(&expression);
-        _ = try self.consume(.semicolon, "Expect ';' after expression.");
+        _ = try self.consume(.semicolon, "Expect ';' after expression.", .{});
         return Stmt{ .expression = .{ .expression = expression } };
+    }
+
+    fn function(self: *Parser, kind: []const u8) ParseError!Stmt {
+        const name = try self.consume(.identifier, "Expect {s} name", .{kind});
+        _ = try self.consume(.left_paren, "Expect '(' after {s} name.", .{kind});
+        var parameters = ArrayList(Token).init(std.heap.page_allocator);
+
+        if (self.tokens.items[self.current].t_type != .right_paren) {
+            while (true) {
+                if (parameters.items.len >= 255) {
+                    return self.@"error"(self.tokens.items[self.current], "Can't have more than 255 parameters", .{});
+                }
+
+                try parameters.append(try self.consume(.identifier, "Expect parameter name.", .{}));
+                self.current += 1;
+                if (self.tokens.items[self.current].t_type != .comma) {
+                    break;
+                } else {
+                    self.current += 1;
+                }
+            }
+        }
+
+        _ = try self.consume(.right_paren, "Expect ')' after parameters", .{});
+
+        _ = try self.consume(.left_brace, "Expect '}}' before {s} body", .{kind});
+
+        const body = try self.block();
+        return Stmt{
+            .function = Stmt.Function{
+                .name = name,
+                .params = parameters,
+                .body = body,
+            },
+        };
     }
 
     fn block(self: *Parser) ParseError!ArrayList(Stmt) {
@@ -248,7 +286,7 @@ pub const Parser = struct {
             try statements.append(try self.declaration());
         }
 
-        _ = try self.consume(.right_brace, "Expect '}' after block.");
+        _ = try self.consume(.right_brace, "Expect '}}' after block.", .{});
 
         return statements;
     }
@@ -266,7 +304,7 @@ pub const Parser = struct {
                 return expression.init_assign(expression.get(expr).variable.name, value);
             }
 
-            return self.@"error"(equals, "Invalid assignment target\n.");
+            return self.@"error"(equals, "Invalid assignment target\n.", .{});
         }
 
         return expr;
@@ -375,7 +413,7 @@ pub const Parser = struct {
         if (!self.match(.right_paren)) {
             while (true) {
                 if (arguments.items.len >= 255) {
-                    return self.@"error"(self.tokens.items[self.current], "Can't have more than 255 arguments.");
+                    return self.@"error"(self.tokens.items[self.current], "Can't have more than 255 arguments.", .{});
                 }
                 var expression = Expr.init(std.heap.page_allocator);
                 _ = try self.expression_p(&expression);
@@ -387,7 +425,7 @@ pub const Parser = struct {
             }
         }
 
-        const paren = try self.consume(.right_paren, "Expect ')' after arguments.");
+        const paren = try self.consume(.right_paren, "Expect ')' after arguments.", .{});
 
         return try parent_expression.init_call(callee, paren, arguments);
     }
@@ -417,12 +455,12 @@ pub const Parser = struct {
         } else if (self.match(.left_paren)) {
             self.current += 1;
             const expr = try self.expression_p(expression);
-            _ = try self.consume(.right_paren, "Expect ')' after expression.");
+            _ = try self.consume(.right_paren, "Expect ')' after expression.", .{});
             ret = try expression.init_grouping(expr);
         }
 
         return ret orelse
-            self.@"error"(self.tokens.items[self.current], "Expect expression.");
+            self.@"error"(self.tokens.items[self.current], "Expect expression.", .{});
     }
 
     fn match(self: *Parser, token_type: TokenType) bool {
@@ -432,18 +470,20 @@ pub const Parser = struct {
             false;
     }
 
-    fn consume(self: *Parser, token_type: TokenType, msg: []const u8) ParseError!Token {
+    fn consume(self: *Parser, token_type: TokenType, comptime msg: []const u8, fmt_args: anytype) ParseError!Token {
         if (self.match(token_type)) {
             defer self.current += 1;
             return self.tokens.items[self.current];
         } else {
-            return self.@"error"(self.tokens.items[self.current], msg);
+            return self.@"error"(self.tokens.items[self.current], msg, fmt_args);
         }
     }
 
-    fn @"error"(self: *Parser, token: Token, message: []const u8) ParseError {
+    fn @"error"(self: *Parser, token: Token, comptime message: []const u8, fmt_args: anytype) ParseError {
         const lexeme = self.source[token.lexeme.start..token.lexeme.end];
-        lox_error(token, lexeme, message);
+        var buf: [128]u8 = undefined;
+        const msg = std.fmt.bufPrint(buf[0..], message, fmt_args) catch @panic("Buffer for error message too small");
+        lox_error(token, lexeme, msg);
         return ParseError.invalid_token;
     }
 
